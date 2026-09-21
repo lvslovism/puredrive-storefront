@@ -113,16 +113,132 @@ export const legal = {
   /** Public site URL, quoted where a clause has to name the site itself. */
   siteUrl: commerce.siteOrigin,
 
+  /*
+   * Both documents are REWRITTEN, not inherited. The template's clauses
+   * describe a shop that registers members, takes orders, charges cards and
+   * ships parcels; this one does none of that online — `flags.commerce` is off,
+   * so /checkout, /login and /account are never built. Shipping clauses about
+   * 訂單資料, 購物車內容 and 原路退款 would be statements of fact that are false.
+   */
   privacy: {
     introTitle: `${identity.name} 隱私權政策`,
-    effectiveDate: '2026-01-01',
-    description: `${identity.name} 隱私權政策`
+    effectiveDate: '2026-09-22',
+    description: `${identity.name} 隱私權政策`,
+    clauses: {
+      introParagraphs: [
+        '本站為 Astrapath Marketing 製作之範例展示站，非實際營業商店。頁面所列公司資訊、統一編號為測試值，商品與價格僅供版面示意，本站不提供線上結帳。',
+        `${identity.name} 重視您的個人資料與隱私權保護。本網站僅提供商品瀏覽與 LINE 詢問，不提供會員註冊與線上購物，請您詳閱以下隱私權政策。`
+      ],
+      sections: [
+        {
+          heading: '一、適用範圍',
+          paragraphs: [
+            `本隱私權政策適用於您瀏覽 ${identity.name} 網站時，涉及個人資料蒐集、處理、利用與保護之相關作法。`,
+            '本政策不適用於本網站以外之第三方網站或服務，包括 LINE、Instagram 與 Facebook。當您透過本網站的連結前往這些平台時，請另行參閱該平台之隱私權政策。'
+          ]
+        },
+        {
+          heading: '二、我們蒐集的資料',
+          paragraphs: [
+            '本網站不設會員帳號，不提供線上下單或付款，因此不會透過本網站蒐集您的姓名、地址、付款或訂單資料。我們可能取得的資料如下：'
+          ],
+          bullets: [
+            '網站使用資料：IP 位址、瀏覽器類型、裝置資訊與瀏覽紀錄，用於流量統計與維持網站正常運作。',
+            'LINE 詢問內容：當您點選「立即詢問」並透過 LINE 官方帳號與我們聯繫時，您以自己的 LINE 帳號登入 LINE，我們僅會看到您在對話中主動提供的內容與 LINE 顯示名稱。'
+          ]
+        },
+        {
+          heading: '三、資料使用目的',
+          paragraphs: ['我們取得的資料，僅用於以下目的：'],
+          bullets: [
+            '回覆您透過 LINE 提出的商品詢問。',
+            '進行網站流量分析、服務改善與系統安全維護。',
+            '配合法令、主管機關或司法機關之要求。'
+          ]
+        },
+        {
+          heading: '四、第三方服務',
+          paragraphs: [
+            '本網站由雲端主機服務商提供網站託管；LINE 對話由 LINE 平台處理。上述服務商僅能在提供服務所需範圍內處理相關資料，除此之外，我們不會將您的資料提供給無關第三人。'
+          ]
+        },
+        {
+          heading: '五、Cookie 與本機儲存',
+          paragraphs: [
+            '本網站可能使用瀏覽器的本機儲存或類似技術記錄基本的瀏覽狀態。您可透過瀏覽器設定拒絕或刪除，停用後不影響商品瀏覽。'
+          ]
+        },
+        {
+          heading: '六、個人資料權利',
+          paragraphs: [
+            '依相關法令規定，您可就您的個人資料請求查詢、閱覽、製給複製本、補充或更正、停止蒐集處理利用，或請求刪除。如需行使上述權利，請透過本政策下方聯絡方式與我們聯繫。'
+          ]
+        },
+        {
+          heading: '七、政策修改',
+          paragraphs: [
+            '我們保留隨時修改本隱私權政策之權利。修改後內容將公告於本網站，並自公告日起生效。'
+          ]
+        }
+      ],
+      contactHeading: '八、聯絡資訊',
+      contactLead: '若您對本隱私權政策或個人資料使用方式有任何問題，請透過以下方式與我們聯繫：'
+    }
   } as LegalPage,
 
   terms: {
     introTitle: `${identity.name} 使用條款`,
-    effectiveDate: '2026-01-01',
-    description: `${identity.name} 使用條款`
+    effectiveDate: '2026-09-22',
+    description: `${identity.name} 使用條款`,
+    clauses: {
+      introParagraphs: [
+        /* Verbatim, and first — ahead of every clause. */
+        '本站為 Astrapath Marketing 製作之範例展示站，非實際營業商店。頁面所列公司資訊、統一編號為測試值，商品與價格僅供版面示意，本站不提供線上結帳。',
+        `歡迎瀏覽 ${identity.name} 網站。當您瀏覽本網站或透過 LINE 向我們詢問時，即表示您已閱讀並同意以下使用條款。`
+      ],
+      sections: [
+        {
+          heading: '一、網站服務',
+          paragraphs: [
+            `${identity.name} 網站提供商品資訊瀏覽與 LINE 詢問服務。本網站不提供會員註冊、線上下單、線上付款或線上退款。我們有權依營運需求調整商品內容、價格與服務項目。`
+          ]
+        },
+        {
+          heading: '二、LINE 登入與詢問',
+          paragraphs: [
+            '本網站不設帳號密碼。您點選「立即詢問」後，將前往 LINE 官方帳號，並以您自己的 LINE 帳號登入 LINE 進行對話；請自行妥善保管您的 LINE 帳號與登入裝置。',
+            '詢問時請提供正確、可聯繫的資料。詢問內容不構成訂單，實際供貨、價格與出貨時程，以客服於 LINE 回覆之內容為準。'
+          ]
+        },
+        {
+          heading: '三、商品資訊',
+          paragraphs: [
+            '本網站將盡力提供正確的商品圖片、價格、規格及說明。商品圖片可能因拍攝光線或螢幕顯示不同，與實際商品略有差異。',
+            '若商品價格、規格或網站資訊有誤，以客服於 LINE 回覆確認之內容為準。'
+          ]
+        },
+        {
+          heading: '四、智慧財產權',
+          paragraphs: [
+            '本網站所有品牌名稱、LOGO、文字、網頁設計及其他內容，均屬本網站或合法權利人所有；商品與情境照片來自授權圖庫。未經授權，不得擅自複製、轉載、修改、散布或作商業使用。'
+          ]
+        },
+        {
+          heading: '五、服務異動與免責',
+          paragraphs: [
+            '本網站可能因系統維護、網路異常、天災或其他不可抗力因素，導致服務暫停、延遲或中斷。我們將盡力維持服務正常運作，但不保證服務完全不中斷或無錯誤。'
+          ]
+        },
+        {
+          heading: '六、條款修改',
+          paragraphs: [
+            '我們保留隨時修改本使用條款之權利。修改後內容將公告於網站，並自公告日起生效。若您於條款修改後繼續使用本網站，即視為同意修改後內容。'
+          ]
+        }
+      ],
+      contactHeading: '七、聯絡資訊',
+      contactLead: '如您對商品或本使用條款有任何問題，請透過以下方式與我們聯繫：'
+    }
   } as LegalPage,
 
   /**
@@ -142,11 +258,13 @@ export const legal = {
   returns: {
     metaTitle: '退換貨政策',
     metaDescription: `${identity.name} 退換貨政策、鑑賞期與退款時程說明。`,
-    effectiveDate: '2026-01-01',
+    effectiveDate: '2026-09-22',
     hero: {
       eyebrow: 'RETURNS',
       title: '退換貨政策',
-      lead: '完善的售後服務，讓您的每一次訂購都安心無憂。'
+      /* The showcase disclaimer, verbatim — the lead is the first line of body
+         text on this page, which is where the other two documents carry it. */
+      lead: '本站為 Astrapath Marketing 製作之範例展示站，非實際營業商店。頁面所列公司資訊、統一編號為測試值，商品與價格僅供版面示意，本站不提供線上結帳。'
     },
 
     inspection: {
@@ -162,11 +280,11 @@ export const legal = {
     steps: {
       title: '申請退換貨流程',
       items: [
-        { step: '1', title: '聯絡客服', text: '於鑑賞期內透過客服管道提出申請' },
-        { step: '2', title: '提供資訊', text: '提供訂單編號、購買人、商品狀態及問題說明' },
+        { step: '1', title: '聯絡客服', text: '於鑑賞期內透過 LINE 官方帳號提出申請' },
+        { step: '2', title: '提供資訊', text: '提供購買人、購買品項、商品狀態及問題說明' },
         { step: '3', title: '審核申請', text: '客服人員將於 1-2 個工作天內與您確認' },
         { step: '4', title: '商品寄回', text: '依指示將商品妥善包裝並寄回指定地址' },
-        { step: '5', title: '退款 / 換貨', text: '確認商品後安排退款或寄出換貨商品' }
+        { step: '5', title: '退款 / 換貨', text: '確認商品後依雙方約定辦理退款或寄出換貨商品' }
       ]
     },
 
@@ -192,17 +310,18 @@ export const legal = {
       {
         title: '退款方式與時程',
         items: [
-          '退款將依原路退回您的付款方式。',
-          '信用卡：7-14 個工作天（依發卡銀行作業時間為準）。',
-          'ATM 轉帳：3-7 個工作天。',
-          '超商代碼繳費：3-7 個工作天。'
+          /* Not 「依原路退回」: this site takes no payment, so there is no
+             route for a refund to go back along. */
+          '本站不提供線上結帳，不經手任何線上付款。',
+          '透過 LINE 洽詢成立之訂購，退款方式與時程由客服於受理時個別說明，並於 LINE 對話中確認。',
+          '退款於確認退回商品無誤後辦理。'
         ]
       },
       {
         title: '瑕疵商品處理',
         items: [
           '若收到商品有瑕疵或運送過程造成損壞，請於收貨後 24 小時內聯繫客服，並提供以下資訊：',
-          '訂單編號',
+          '購買人與購買品項',
           '現場商品照片',
           '問題描述'
         ]
@@ -214,7 +333,7 @@ export const legal = {
       lead: '如有任何退換貨相關問題，歡迎與我們聯繫，我們將竭誠為您服務。'
     },
 
-    note: '本頁內容為範本，需依實際營運狀況調整，並請由具備資格者確認。'
+    note: '本站為 Astrapath Marketing 製作之範例展示站，非實際營業商店；本頁內容為範本，僅供版面示意。'
   }
 };
 

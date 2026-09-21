@@ -1,8 +1,0 @@
-<!-- template-placeholder: replace this file with real artwork. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="ARTICLE COVER">
-  <rect width="1200" height="800" fill="#f0f0f0"/>
-  <rect x="0.5" y="0.5" width="1199" height="799" fill="none" stroke="#dddddd"/>
-  <line x1="0" y1="0" x2="1200" y2="800" stroke="#e4e4e4"/>
-  <line x1="1200" y1="0" x2="0" y2="800" stroke="#e4e4e4"/>
-  <text x="600" y="400" fill="#767676" font-family="system-ui, sans-serif" font-size="60" text-anchor="middle" dominant-baseline="middle">ARTICLE COVER</text>
-</svg>

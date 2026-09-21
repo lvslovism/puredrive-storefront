@@ -75,7 +75,7 @@ export const commerce = {
    * this one — so a storefront pointed at the wrong domain fails the build
    * instead of quietly serving somebody else's catalogue.
    */
-  merchantCode: 'example-store',
+  merchantCode: 'puredrive',
 
   /** Commerce API origin. No trailing slash. */
   apiBase: 'https://commerce-workers.ryan-319.workers.dev',
@@ -85,14 +85,14 @@ export const commerce = {
    * (`<project>.pages.dev`), not the vanity domain. Used only to resolve the
    * merchant bundle.
    */
-  siteDomain: 'example.pages.dev',
+  siteDomain: 'puredrive.astrapath-marketing.com',
 
   /**
    * Canonical public origin: canonical URLs, og:url, JSON-LD @id. No trailing
    * slash. Distinct from `siteDomain` — the vanity domain is what the world
    * links to.
    */
-  siteOrigin: 'https://example.com',
+  siteOrigin: 'https://puredrive.astrapath-marketing.com',
 
   /**
    * Which of the two Cloudflare hosts this shop deploys to: `pages` or
@@ -111,7 +111,7 @@ export const commerce = {
    *
    * See README → Deploying and docs/PITFALLS.md #3.
    */
-  deployTarget: 'pages',
+  deployTarget: 'workers',
 
   /**
    * 這家店的自訂網域（bare host，無 scheme、無尾斜線）。**選用；不設就不輸出。**
@@ -133,19 +133,19 @@ export const commerce = {
    *    domain，`wrangler triggers deploy` 也不會（兩者皆已實測）。唯一途徑是
    *    API `DELETE /accounts/{id}/workers/domains/{domain_id}`。
    */
-  // customDomain: 'example.astrapath-marketing.com',
+  customDomain: 'puredrive.astrapath-marketing.com',
 
   flags: {
-    blog: true,
-    affiliate: true,
-    contentPages: true,
-    cartPage: true,
-    commerce: true
+    blog: false,
+    affiliate: false,
+    contentPages: false,
+    cartPage: false,
+    commerce: false
   } as Flags,
 
   demo: {
     /** Set false once `siteDomain` resolves against a real merchant. */
-    enabled: true,
+    enabled: false,
 
     /**
      * Stand-in for the `merchant-by-domain` bundle. Shape matches the API

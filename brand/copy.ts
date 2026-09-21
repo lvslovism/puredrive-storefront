@@ -42,13 +42,7 @@ export type ImageItem = { title: string; text: string; image: string };
  * document, so the header drops its centre column and its drawer with it and
  * keeps only the cart / member / call-to-action cluster.
  */
-export const navigation: NavItem[] = [
-  { label: '首頁', href: '/' },
-  { label: '關於我們', href: '/about' },
-  { label: '全部商品', href: '/products' },
-  { label: '專欄', href: '/blog' },
-  { label: '聯絡我們', href: '/contact' }
-];
+export const navigation: NavItem[] = [];
 
 /**
  * The header controls that sit opposite the wordmark, in every shape of shop.
@@ -62,7 +56,7 @@ export const header = {
   cart: '購物車',
   member: '會員',
   ctaLabel: '立即選購',
-  ctaHref: '/products',
+  ctaHref: '/#catalogue',
   /**
    * SHOWCASE ONLY (`flags.commerce: false`). The single button that replaces
    * the whole cart / member / call-to-action cluster.
@@ -72,34 +66,34 @@ export const header = {
    * decision, and copy decisions live in brand/. A transacting shop never
    * renders it and can leave it as shipped.
    */
-  inquiryLabel: '加 LINE 詢問'
+  inquiryLabel: '立即詢問'
 };
 
 /** Footer link columns. The company block is appended by the component. */
+/*
+ * The comp draws 購物專區 and 顧客服務 columns. Their entries — 全部商品,
+ * 熱銷推薦, 配送政策, 購物說明 … — would point at pages this one-page showcase
+ * never builds, so they are not here: the first column walks the home page
+ * instead, and the second carries the three documents that DO exist. With the
+ * brand column and the derived 聯絡資訊 block that keeps the template's four
+ * columns, and every link in them resolves.
+ */
 export const footerGroups: FooterGroup[] = [
   {
     title: '快速連結',
     links: [
-      { label: '全部商品', href: '/products' },
-      { label: '關於我們', href: '/about' },
-      { label: '專欄', href: '/blog' }
+      { label: '精選商品', href: '/#catalogue' },
+      { label: '生活態度', href: '/#scenes' },
+      { label: '常見問題', href: '/#faq' },
+      { label: '聯絡我們', href: '/#contact' }
     ]
   },
   {
     title: '購物資訊',
     links: [
-      { label: '常見問題', href: '/faq' },
       { label: '使用條款', href: '/terms' },
       { label: '隱私權政策', href: '/privacy' },
       { label: '退換貨政策', href: '/returns-policy' }
-    ]
-  },
-  {
-    title: '會員服務',
-    links: [
-      { label: '會員登入', href: '/login' },
-      { label: '會員中心', href: '/account' },
-      { label: '訂單查詢', href: '/account' }
     ]
   }
 ];
@@ -229,6 +223,28 @@ export type HeroCopy = {
   };
   title: string;
   /**
+   * A handwritten line set on the far side of the hero from the copy, in
+   * `--font-script` and the accent colour. OPTIONAL — absent or empty renders
+   * nothing. Only HomeLanding reads it.
+   *
+   * ⚠️ The script face is loaded with Google Fonts' `text=` subset, so it
+   * carries ONLY the glyphs of the lines written in this file. Change the
+   * words and change `text=` in `identity.fontStylesheets` in the same edit.
+   */
+  script?: string;
+  /**
+   * The small letterspaced line in the copy block, between the lead and the
+   * button. OPTIONAL — absent or empty renders nothing. Only HomeLanding
+   * reads it.
+   */
+  tagline?: string;
+  /**
+   * Small letterspaced caps in the photograph's lower-right corner, one line
+   * per `\n`. OPTIONAL — absent or empty renders nothing. Wide screens only.
+   * It stands on the photograph, so it is MEASURED like the copy.
+   */
+  corner?: string;
+  /**
    * The small line above the headline. Empty string renders nothing — a comp
    * with no eyebrow is a choice, not an omission, and the hero drops the
    * element rather than leaving a blank line where it would have been. The KEY
@@ -309,26 +325,41 @@ export type HomeLandingCopy = {
   /**
    * Occasion cards — the "what is this for" band. Emptying the array removes it.
    *
-   * THREE. The grid is three columns at desktop, two below 900px and one below
-   * 560px, so a fourth entry does not widen the row — it drops to a second row
-   * on its own and reads as a mistake. The count is a layout fact, not a
-   * preference, which is why it is stated here rather than left to be found.
+   * FOUR, in this shop. The template's grid is three columns; this shop's
+   * HomeLanding runs four at desktop, two from 1024px down and one from 560px
+   * down, so four entries fill one desktop row and two tablet rows exactly.
+   * A fifth would drop to a row on its own and read as a mistake.
    */
-  scenes: { title: string; items: ImageItem[] };
+  scenes: {
+    /** `\n` renders as a line break. */
+    title: string;
+    /** The small letterspaced line above the title. OPTIONAL. */
+    eyebrow?: string;
+    /** The line under the title. OPTIONAL. */
+    lead?: string;
+    items: (ImageItem & { imageAlt?: string })[];
+  };
 
   /**
    * The FAQ disclosure block. The questions are NOT authored here — the page
    * reads `faq.items` further down and resolves the payment and shipping
    * answers from merchant config, exactly as the standalone /faq page does.
    * One source, one answer.
+   *
+   * `eyebrow` and `lead` empty render nothing. `aside` is the small label in
+   * the right margin and `script` the handwritten line under it; both are
+   * decoration on a wide screen only, and both are OPTIONAL. `script` shares
+   * the hero's `text=` font subset — see `HeroCopy.script`.
    */
-  faq: { eyebrow: string; title: string; lead: string };
+  faq: { eyebrow: string; title: string; lead: string; aside?: string; script?: string };
   /**
    * The contact strip above the footer. The phone, e-mail and service hours it
    * shows are NOT authored here: they derive from the merchant record, same as
    * the footer and the legal pages, so the three cannot disagree.
    */
   lineCta: {
+    /** The letterspaced line above the title. OPTIONAL; empty renders nothing. */
+    eyebrow?: string;
     /** `{channel}` is replaced with `identity.line.id`. */
     title: string;
     /** Two short lines under the title. More render; they just get long. */
@@ -434,60 +465,115 @@ export const homeMultipage: HomeMultipageCopy = {
  */
 export const homeLanding: HomeLandingCopy = {
   preset: 'landing',
-  metaTitle: '首頁',
-  metaDescription: `${identity.name} 線上商店`,
+  metaTitle: '不只潔淨，更是對駕馭的熱愛',
+  metaDescription:
+    '專業汽車美容用品：洗車精、鍍膜噴霧、擦車巾與內裝清潔，讓每一次出發都閃耀如新。',
 
+  /*
+   * A DARK photograph under white copy, as drawn — the first in this family.
+   *
+   * MEASURED per glyph, per docs/PITFALLS.md #7: each character's own rect,
+   * with `.hero-copy > *` hidden (the corner caps: ink made transparent),
+   * against white. 2026-09-22, hero-v1 / hero-mobile-v1:
+   *
+   *   photograph plain ('none')   fails everywhere — the silver car and the
+   *              ceiling tubes sit under the copy: 9–33 glyphs under 4.5 at
+   *              every width, min 1.00.
+   *   dark scrim 'heavy'  ← shipped, plus HomeLanding carrying it across the
+   *              phone's full width (solid to 62%, gone by 100%):
+   *              1440, 1280, 1100: 0 / 71; 820, 390: 0 / 45.
+   *   The corner caps (CLEANER CARS / HAPPIER JOURNEYS) sit on the car's
+   *   near-black rear: 0 / 26 at every width they show, min 11.90.
+   *
+   * A conclusion about THESE words on THESE crops. Change either, measure again.
+   */
   hero: {
-    tone: 'light',
-    eyebrow: 'EXAMPLE STORE',
-    title: '這裡是首頁主標題',
+    tone: 'dark',
+    copyGround: 'scrim',
+    mobileCopyGround: 'scrim',
+    align: 'left',
+    scrim: { from: 'left', tint: 'dark', depth: 'heavy' },
+    eyebrow: '',
+    title: '不只潔淨\n更是對駕馭的熱愛',
     /** `\n` renders as a line break — the block is `white-space: pre-line`. */
-    description: '這段副標來自 brand/copy.ts。\n替換成你要對客人說的第一句話。',
-    ctaLabel: '立即選購',
-    ctaHref: '#catalogue',
-    image: '/assets/home/hero.svg',
-    mobileImage: '/assets/home/hero-mobile.svg',
-    imageAlt: '首頁主視覺'
+    description: '專業汽車美容用品，讓每一次出發都閃耀如新',
+    tagline: '清潔 ｜ 保護 ｜ 維護 ｜ 享受駕馭',
+    corner: 'CLEANER CARS\nHAPPIER JOURNEYS',
+    ctaLabel: '立即詢問 →',
+    ctaHref: 'https://line.me/R/ti/p/%40060mzbbf',
+    image: '/assets/home/hero-v1.jpg',
+    mobileImage: '/assets/home/hero-mobile-v1.jpg',
+    imageAlt: '昏暗車庫裡，以高壓水柱沖洗銀色轎車的剪影'
   },
 
-  /* No `icon`: the strip numbers itself 1..5 from position. A shop with real
-     glyphs adds them and gets those instead. */
+  /* Six, as drawn. HomeLanding derives the column count from the entries. */
   trust: {
     items: [
-      { title: '重點一', text: '一句話說明這項優勢' },
-      { title: '重點二', text: '一句話說明這項優勢' },
-      { title: '重點三', text: '一句話說明這項優勢' },
-      { title: '重點四', text: '一句話說明這項優勢' },
-      { title: '重點五', text: '一句話說明這項優勢' }
+      { icon: '/assets/home/trust/quality.svg', title: '專業級品質', text: '嚴選高效配方' },
+      { icon: '/assets/home/trust/protect.svg', title: '全方位防護', text: '從清潔到保護' },
+      { icon: '/assets/home/trust/gentle.svg', title: '安全不傷車漆', text: '溫和有效配方' },
+      { icon: '/assets/home/trust/star.svg', title: '玩家一致推薦', text: '眾多車主好評' },
+      { icon: '/assets/home/trust/shipping.svg', title: '快速出貨', text: '台灣本島快速配送' },
+      { icon: '/assets/home/trust/advice.svg', title: '專業諮詢', text: '提供適用建議' }
     ] as IconItem[]
   },
 
-  /* No "view all" link: this block already IS the whole catalogue. */
   catalogue: {
-    eyebrow: 'PRODUCTS',
-    title: '全部商品',
-    lead: '一句話說明這裡賣的是什麼。'
+    eyebrow: 'OUR PRODUCTS',
+    title: '精選商品',
+    lead: '專業源自細節・打造更完美的駕馭體驗'
   },
 
+  /*
+   * Four, as drawn, on the DARK band — the wash, the cabin, the coating, and
+   * the road the clean car is for.
+   */
   scenes: {
-    title: '一句話說明這些商品用在什麼場合',
+    eyebrow: 'MORE THAN CLEAN',
+    title: '不只是清潔・更是一種生活態度',
+    lead: '從日常維護到深度養護，陪伴你享受每一段駕馭旅程',
     items: [
-      { title: '情境一', text: '簡短說明', image: '/assets/home/scene-01.svg' },
-      { title: '情境二', text: '簡短說明', image: '/assets/home/scene-02.svg' },
-      { title: '情境三', text: '簡短說明', image: '/assets/home/scene-03.svg' }
-    ] as ImageItem[]
+      {
+        title: '外觀洗淨',
+        text: '徹底清潔・閃耀如新',
+        image: '/assets/home/scene-01-v1.jpg',
+        imageAlt: '覆滿洗車泡沫的車頭大燈特寫'
+      },
+      {
+        title: '內裝護理',
+        text: '細節清潔・舒適升級',
+        image: '/assets/home/scene-02-v1.jpg',
+        imageAlt: '以超細纖維布擦拭方向盤的車內護理'
+      },
+      {
+        title: '鍍膜維護',
+        text: '持久保護・光澤如鏡',
+        image: '/assets/home/scene-03-v1.jpg',
+        imageAlt: '深色烤漆上的撥水水珠特寫'
+      },
+      {
+        title: '週末車旅',
+        text: '乾淨的車・更精彩的旅程',
+        image: '/assets/home/scene-04-v1.jpg',
+        imageAlt: '從車窗望出的海岸公路與遠方海面'
+      }
+    ]
   },
 
+  /* The Q1–Q5 prefixes are drawn by HomeLanding's CSS counter, not typed into
+     the questions, so the standalone /faq data stays clean. */
   faq: {
-    eyebrow: 'FAQ',
+    eyebrow: 'FREQUENTLY ASKED QUESTIONS',
     title: '常見問題',
-    lead: '常被問到的問題；付款與配送的答案由商家設定自動帶出。'
+    lead: '有其他問題？歡迎點擊下方按鈕與我們聯繫'
   },
 
   lineCta: {
-    title: '加入 LINE {channel}',
-    lines: ['掌握新品資訊與專屬優惠', '這兩行來自 brand/copy.ts，替換成你要說的話。'],
-    buttonLabel: '立即加入 LINE',
+    eyebrow: 'READY FOR A CLEANER RIDE?',
+    title: '讓愛車展現最佳狀態',
+    lines: ['專業汽車美容用品，從這裡開始'],
+    /* The arrow is drawn by HomeLanding's own SVG, so it is not typed here. */
+    buttonLabel: '立即詢問',
     qrCaption: '掃描加入 LINE 好友'
   }
 };
@@ -496,7 +582,7 @@ export const homeLanding: HomeLandingCopy = {
  * The preset this shop uses. Swap to `homeLanding` for a one-page shop; nothing
  * else changes — src/pages/index.astro renders whichever `preset` says.
  */
-export const home: HomeCopy = homeMultipage;
+export const home: HomeCopy = homeLanding;
 
 /**
  * Every preset the template ships, selected or not.
@@ -540,10 +626,9 @@ export type TrustItem = { title: string; body: string; icon?: string };
 
 export const trust: { items: TrustItem[] } = {
   items: [
-    { icon: 'shield', title: '正品保證', body: '一句話說明你的品質保證。' },
-    { icon: 'delivery', title: '快速出貨', body: '一句話說明你的出貨節奏。' },
-    { icon: 'payment', title: '多元付款', body: '一句話說明可用的付款方式。' },
-    { icon: 'support', title: '售後服務', body: '一句話說明你的售後承諾。' }
+    { icon: 'shield', title: '安全不傷車漆', body: '溫和有效配方，從清潔到保護。' },
+    { icon: 'delivery', title: '快速出貨', body: '台灣本島快速配送。' },
+    { icon: 'support', title: '專業諮詢', body: '依車況與用途提供適用建議。' }
   ]
 };
 
@@ -622,19 +707,33 @@ export const productDetail = {
    * composer, it does not send anything.
    */
   inquiryLabel: '立即詢問',
-  inquiryMessage: '我想詢問：{product}',
+  /*
+   * EMPTY on purpose, so every enquiry opens the plain add-friend link
+   * (`line.me/R/ti/p/…`) with nothing pre-typed — src/lib/line.ts falls back to
+   * it when the message is empty.
+   *
+   * The pre-filled form (`oaMessage`) was measured on 2026-09-21 and fails hard
+   * on desktop: line.me redirects a desktop browser straight to LINE's own
+   * homepage (www.line.me/en/), with no account and no message. `ti/p` serves
+   * the "Add LINE friend" page with the QR on desktop. Phones handed
+   * `oaMessage` over to the app with the text intact, but a helper cannot tell
+   * the two apart per device, so the one link that works everywhere wins.
+   * The cost: 客服 can no longer tell from the first message which product,
+   * or which shop, a chat came from.
+   */
+  inquiryMessage: '',
 
   assurances: [
-    { title: '配送說明', text: '一句話說明配送方式' },
+    { title: '安全不傷車漆', text: '溫和有效配方' },
     { title: '七日鑑賞期', text: '商品到貨日起算 7 天' },
-    { title: '安心付款', text: '多元付款・安全可靠' }
+    { title: 'LINE 諮詢', text: '車況與用品搭配一對一回覆' }
   ] as IconItem[],
 
   /** Tab labels, in render order. The first tab is the API description. */
   tabs: {
     description: '商品說明',
-    ingredients: '規格與材質',
-    ordering: '訂購須知'
+    ingredients: '使用與保養',
+    ordering: '詢問須知'
   },
 
   /** Shown when a product carries no description of its own. */
@@ -642,16 +741,16 @@ export const productDetail = {
 
   /** Second tab. Replace with the facts your category actually needs. */
   ingredients: [
-    '這一行說明商品的材質、成分或規格。',
-    '這一行說明保存、清潔或使用上的注意事項。',
+    '請於陰涼處、車身表面降溫後使用，避免在烈日下施作，以免藥劑快速乾燥留下水痕。',
+    '使用前請先於不顯眼處小面積測試；擦車巾與手套請分開清洗，勿使用柔軟精。',
     '本頁內容為範例文案，實際規格以商品包裝標示為準。'
   ],
 
   /** Third tab. Ordering / shipping expectations, not the checkout's own rules. */
   ordering: [
-    '訂單成立後將於 1-2 個工作天內出貨。',
-    '這一行說明配送方式的限制或建議。',
-    '本頁內容為範例文案，實際出貨與配送規範以結帳頁與客服說明為準。'
+    '本站為展示範例站，不提供線上結帳；點選「立即詢問」即可透過 LINE 與我們聯繫。',
+    '詢問時請告知商品與規格，我們會回覆供貨與出貨時程。',
+    '本頁內容為範例文案，商品與價格僅供版面示意。'
   ],
 
   relatedTitle: '您可能也喜歡'
@@ -716,39 +815,39 @@ export const faq = {
   },
   ctaCopy: '找不到您的問題？',
   ctaLabel: '聯絡我們',
-  ctaHref: '/contact',
+  ctaHref: '/#contact',
+  /*
+   * Five questions, all authored, in the comp's order. The payment and shipping DERIVED answers are
+   * not asked here: this merchant sells nothing online and declares no payment
+   * or shipping methods, so both derives return null and would drop their
+   * question anyway (HomeLanding's DERIVE_ANSWER). 訂單多久會出貨 is a lead-time
+   * question, not the list of carriers the shipping derive projects.
+   */
   items: [
     {
       category: '商品問題',
-      question: '商品建議怎麼使用？',
-      answer: '請依包裝標示的方式使用；若有特殊狀況，建議先小範圍試用。'
+      question: '這些產品是否適用於所有車款？',
+      answer: '適用於一般轎車、休旅車與機車的烤漆、玻璃與內裝。消光漆、改色膜或特殊材質請先於不顯眼處小面積測試，或透過 LINE 詢問適用性。'
     },
     {
       category: '商品問題',
-      question: '商品開封後可以放多久？',
-      answer: '建議於包裝標示的保存期限內使用，並存放於陰涼乾燥處。'
+      question: '鍍膜噴霧可以維持多久？',
+      answer: '依使用環境與洗車頻率不同，一般約可維持 1–2 個月；搭配中性洗車精定期清潔，可延長撥水與光澤效果。'
     },
     {
-      category: '購物與付款',
-      question: '要怎麼完成購買？',
-      answer: '將商品加入購物車後進入結帳流程，填寫聯絡與配送資訊即可送出訂單。'
-    },
-    { category: '購物與付款', question: '提供哪些付款方式？', answer: '', derive: 'payment' },
-    {
-      category: '購物與付款',
-      question: '下單後可以修改或取消訂單嗎？',
-      answer: '若訂單尚未出貨，請儘快聯絡我們協助修改或取消；已出貨則依退換貨流程處理。'
-    },
-    { category: '配送與取貨', question: '提供哪些配送方式？', answer: '', derive: 'shipping' },
-    {
-      category: '配送與取貨',
-      question: '運費是怎麼計算的？',
-      answer: '運費會於結帳頁依所選配送方式自動試算，實際金額以結帳頁為準。'
+      category: '訂購與出貨',
+      question: '下單後多久會出貨？',
+      answer: '本站不提供線上結帳。透過 LINE 詢問確認品項與規格後，現貨商品一般於 1–2 個工作天內出貨；缺貨品項會另行告知時程。'
     },
     {
-      category: '會員與訂單',
-      question: '如何查詢訂單與配送進度？',
-      answer: '登入會員後可於會員中心查看歷史訂單與配送狀態。'
+      category: '商品問題',
+      question: '產品是否安全？會不會傷車漆或內裝？',
+      answer: '洗車精為中性配方，依標示稀釋與使用不會傷害車漆與鍍膜。請避免在烈日或高溫車身上施作，並依各產品說明使用。'
+    },
+    {
+      category: '售後服務',
+      question: '如果不確定該買哪個產品，可以怎麼選擇？',
+      answer: '點選「立即詢問」透過 LINE 告訴我們車款、車色與想解決的問題，我們會建議適合的用品組合；第一次入門也可以直接選擇頂級護理套組。'
     }
   ] as FaqItem[]
 };
@@ -761,11 +860,11 @@ export const notFound = {
   lead: `你開啟的頁面不存在或已被移動。
 下面是幾個還在的入口。`,
   /** The hero runs dark over this image, so pick one that can carry white type. */
-  heroImage: '/assets/home/hero.svg',
+  heroImage: '/assets/home/hero-v1.jpg',
   heroImageAlt: '找不到頁面',
   ctaLabel: '回到首頁',
-  secondaryCtaLabel: '繼續選購',
-  secondaryCtaHref: '/products',
+  secondaryCtaLabel: '瀏覽商品',
+  secondaryCtaHref: '/#catalogue',
   /** The recommendation row. Products come from the commerce API. */
   recommendTitle: '為你推薦',
   quickLinksTitle: '快速連結',
@@ -775,9 +874,9 @@ export const notFound = {
    */
   quickLinks: [
     { label: '回到首頁', href: '/' },
-    { label: '全部商品', href: '/products' },
-    { label: '專欄', href: '/blog' },
-    { label: '聯絡我們', href: '/contact' }
+    { label: '精選商品', href: '/#catalogue' },
+    { label: '常見問題', href: '/#faq' },
+    { label: '聯絡我們', href: '/#contact' }
   ] as IconLink[]
 };
 

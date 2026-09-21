@@ -1,8 +1,0 @@
-<!-- template-placeholder: replace this file with real artwork. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 1040" width="780" height="1040" role="img" aria-label="HOME HERO MOBILE">
-  <rect width="780" height="1040" fill="#f0f0f0"/>
-  <rect x="0.5" y="0.5" width="779" height="1039" fill="none" stroke="#dddddd"/>
-  <line x1="0" y1="0" x2="780" y2="1040" stroke="#e4e4e4"/>
-  <line x1="780" y1="0" x2="0" y2="1040" stroke="#e4e4e4"/>
-  <text x="390" y="520" fill="#767676" font-family="system-ui, sans-serif" font-size="59" text-anchor="middle" dominant-baseline="middle">HOME HERO MOBILE</text>
-</svg>

@@ -1,8 +1,5 @@
-<!-- template-placeholder: replace this file with real artwork. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="OG IMAGE">
-  <rect width="1200" height="630" fill="#f0f0f0"/>
-  <rect x="0.5" y="0.5" width="1199" height="629" fill="none" stroke="#dddddd"/>
-  <line x1="0" y1="0" x2="1200" y2="630" stroke="#e4e4e4"/>
-  <line x1="1200" y1="0" x2="0" y2="630" stroke="#e4e4e4"/>
-  <text x="600" y="315" fill="#767676" font-family="system-ui, sans-serif" font-size="47" text-anchor="middle" dominant-baseline="middle">OG IMAGE</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="PUREDRIVE — DETAILING FOR A BETTER DRIVE">
+  <rect width="1200" height="630" fill="#11191e"/>
+  <text x="600" y="290" fill="#ffffff" font-family="'Segoe UI', Arial, sans-serif" font-size="92" font-weight="700" letter-spacing="14" text-anchor="middle" dominant-baseline="middle">PUREDRIVE</text>
+  <text x="600" y="380" fill="#5aa3ff" font-family="'Segoe UI', Arial, sans-serif" font-size="24" letter-spacing="8" text-anchor="middle" dominant-baseline="middle">DETAILING FOR A BETTER DRIVE</text>
 </svg>

@@ -1,8 +1,0 @@
-<!-- template-placeholder: replace this file with real artwork. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" width="1600" height="500" role="img" aria-label="CTA BAND">
-  <rect width="1600" height="500" fill="#f0f0f0"/>
-  <rect x="0.5" y="0.5" width="1599" height="499" fill="none" stroke="#dddddd"/>
-  <line x1="0" y1="0" x2="1600" y2="500" stroke="#e4e4e4"/>
-  <line x1="1600" y1="0" x2="0" y2="500" stroke="#e4e4e4"/>
-  <text x="800" y="250" fill="#767676" font-family="system-ui, sans-serif" font-size="38" text-anchor="middle" dominant-baseline="middle">CTA BAND</text>
-</svg>

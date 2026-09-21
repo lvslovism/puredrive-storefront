@@ -39,4 +39,4 @@
  * 其餘四項（指令字串、robots.txt 全文、交易頁清單、整體取捨說明）都在
  * `src/lib/noindex.mjs`，那支是共用的，不要在這裡重複宣告。
  */
-export const SITE_NOINDEX = false;
+export const SITE_NOINDEX = true;

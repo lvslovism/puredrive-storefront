@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="快速出貨">
+  <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 14h22v19H6Z"/>
+    <path d="M28 20h8l6 7v6h-14"/>
+    <circle cx="14" cy="35" r="3.2"/>
+    <circle cx="34" cy="35" r="3.2"/>
+  </g>
+</svg>

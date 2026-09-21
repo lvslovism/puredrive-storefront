@@ -1,4 +1,5 @@
-<!-- template-placeholder: replace this file with real artwork. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 48" width="240" height="48" role="img" aria-label="Example">
-  <text x="0" y="24" fill="#1a1a1a" font-family="Georgia, serif" font-size="24" letter-spacing="6" dominant-baseline="middle">EXAMPLE</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 52" width="300" height="52" role="img" aria-label="PUREDRIVE">
+  <path d="M4 10h24a10 10 0 0 1 0 20H16l-6 12H2l10-20h15a3 3 0 0 0 0-6H1Z" fill="#141a21"/>
+  <text x="44" y="22" fill="#141a21" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="3" dominant-baseline="middle">PUREDRIVE</text>
+  <text x="45" y="42" fill="#3a4048" font-family="'Segoe UI', Arial, sans-serif" font-size="8.5" letter-spacing="1.6" dominant-baseline="middle">DETAILING FOR A BETTER DRIVE</text>
 </svg>
