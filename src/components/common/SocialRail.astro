@@ -1,0 +1,157 @@
+---
+/**
+ * The fixed rail on the right: the shop's social channels, then back-to-top.
+ *
+ * Rendered by BaseLayout, so it follows the reader down every page. It hides
+ * below 430px — at that width it would sit on top of the content it is meant to
+ * sit beside, and the footer already carries the same links.
+ *
+ * Back-to-top appears only after 200px of scroll: at the top of the page it
+ * would be a button that does nothing.
+ *
+ * An empty `identity.social` removes the whole rail rather than leaving a lone
+ * arrow floating over the page.
+ *
+ * The list is FILTERED for this surface rather than mapped straight from
+ * `identity.social`. The rail is a one-tap contact affordance where a single
+ * entry is perfectly good; the footer's row is a channel list where one entry
+ * reads as an oversight. They used to be the same array with no way to differ.
+ */
+import { identity } from "../../../brand/identity";
+import { socialFor } from "../../lib/features";
+
+const social = socialFor("rail", identity.social);
+---
+
+{social.length > 0 && (
+  <div class="social-rail" data-social-rail>
+    <ul class="rail-social">
+      {social.map((link) => (
+        <li>
+          <a href={link.href} target="_blank" rel="noopener noreferrer" aria-label={link.label}>
+            <img src={link.icon} alt="" width="18" height="18" loading="lazy" decoding="async" />
+          </a>
+        </li>
+      ))}
+    </ul>
+
+    <span class="rail-divider" aria-hidden="true"></span>
+
+    <button type="button" class="rail-top" data-rail-top aria-label="回到頂部" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 18V6" /><path d="M6.5 11.5 12 6l5.5 5.5" />
+      </svg>
+    </button>
+  </div>
+)}
+
+<script>
+  // The button is `hidden` until the reader is far enough down for "back to
+  // top" to mean anything.
+  const rail = document.querySelector("[data-social-rail]");
+  const top = rail?.querySelector("[data-rail-top]") as HTMLButtonElement | null;
+  if (top) {
+    const THRESHOLD = 200;
+    const sync = () => {
+      top.hidden = window.scrollY < THRESHOLD;
+    };
+    // passive: this listener never calls preventDefault, and saying so keeps it
+    // off the scrolling critical path.
+    window.addEventListener("scroll", sync, { passive: true });
+    sync();
+    top.addEventListener("click", () => {
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+    });
+  }
+</script>
+
+<style>
+  .social-rail {
+    position: fixed;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 40;
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+  }
+
+  .rail-social {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-social a,
+  .rail-top {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .rail-social img {
+    width: 17px;
+    height: 17px;
+  }
+
+  .rail-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--color-border);
+  }
+
+  /* A separator separates two things. `.rail-top` carries `hidden` until 200px
+     of scroll — at the top of the page a back-to-top button would do nothing —
+     but the divider had no such condition, so for the first 200px of every page
+     it was a hairline with nothing under it. Measured on the deployed builds at
+     1440x900: the rail box is 40x66 at scroll 0 and 40x116 at scroll 600, and
+     the arithmetic is the same at three buttons as at one, so this is not a
+     one-button artefact.
+
+     It reads `.rail-top`'s OWN state rather than a second one. Two conditions
+     for one fact is how they drift apart, and the script already owns that fact
+     — which is also why this is a selector and not a line of JavaScript: the
+     hoisted script is bundled into a hashed file the page references by name,
+     so touching it would change every storefront's rendered HTML to move a
+     hairline. `:has()` reads the same state for nothing.
+
+     With JavaScript off, `hidden` is what the server rendered and never lifts,
+     so the divider stays hidden — consistent with the button beside it. */
+  .social-rail:has(.rail-top[hidden]) .rail-divider {
+    display: none;
+  }
+
+  .rail-top svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .rail-top[hidden] {
+    display: none;
+  }
+
+  /* Below this width the rail overlaps the content instead of flanking it, and
+     the footer already carries every one of these links. */
+  @media (max-width: 430px) {
+    .social-rail {
+      display: none;
+    }
+  }
+</style>

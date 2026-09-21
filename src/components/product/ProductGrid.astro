@@ -1,0 +1,57 @@
+---
+import ProductCard from "./ProductCard.astro";
+import type { CardProduct } from "../../lib/commerce";
+
+interface Props {
+  products: CardProduct[];
+  variant?: "default" | "compact";
+  desktopColumns?: number;
+  tabletColumns?: number;
+  mobileColumns?: number;
+}
+
+const {
+  products = [],
+  variant = "default",
+  desktopColumns = 3,
+  tabletColumns = 2,
+  mobileColumns = 2,
+} = Astro.props;
+---
+
+<div
+  class:list={["product-grid", `variant-${variant}`]}
+  data-section="product-grid"
+  style={`--grid-desktop:${desktopColumns}; --grid-tablet:${tabletColumns}; --grid-mobile:${mobileColumns};`}
+>
+  {products.map((product) => <ProductCard product={product} variant={variant} />)}
+</div>
+
+<style>
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--grid-desktop), minmax(0, 1fr));
+    gap: var(--space-5);
+  }
+
+  .product-grid.variant-compact {
+    gap: var(--space-4);
+  }
+
+  @media (max-width: 900px) {
+    .product-grid {
+      grid-template-columns: repeat(var(--grid-tablet), minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 560px) {
+    .product-grid {
+      grid-template-columns: repeat(var(--grid-mobile), minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+
+    .product-grid.variant-compact {
+      gap: var(--space-2);
+    }
+  }
+</style>

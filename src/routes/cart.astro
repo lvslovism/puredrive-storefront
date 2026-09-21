@@ -1,0 +1,105 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Button from "../components/common/Button.astro";
+import CartItemRow from "../components/cart/CartItemRow.astro";
+import OrderSummary from "../components/cart/OrderSummary.astro";
+import { cart as cartCopy } from "../../brand/copy";
+
+// Cart contents render client-side from the commerce-workers API (guest session
+// in localStorage). A placeholder item seeds the row <template> so Astro emits
+// the scoped styles; the script clones + fills it per cart line.
+const placeholderItem = { slug: "", name: "", image: "", price: 0, quantity: 1 };
+---
+
+<BaseLayout title="購物車" description={cartCopy.metaDescription}>
+  <section class="section cart-main" data-section="cart_items">
+    <div class="container" data-cart-page>
+      <p class="cart-loading" data-cart-loading>購物車載入中…</p>
+
+      <div class="empty-cart" data-cart-empty style="display:none">
+        <p class="eyebrow">{cartCopy.emptyEyebrow}</p>
+        <h2 class="section-title">{cartCopy.emptyTitle}</h2>
+        <p class="lead">{cartCopy.emptyLead}</p>
+        <Button href="/products">{cartCopy.emptyCtaLabel}</Button>
+      </div>
+
+      <div class="cart-grid" data-cart-grid style="display:none">
+        <div class="cart-items-panel">
+          <div class="cart-title-block">
+            <h1>購物車（<span data-cart-title-count>0</span>）</h1>
+          </div>
+
+          <div class="cart-table-head" aria-hidden="true">
+            <span>商品資訊</span>
+            <span>數量</span>
+            <span>小計</span>
+          </div>
+
+          <div class="items-card">
+            <div class="cart-list" data-cart-list></div>
+          </div>
+        </div>
+        <div class="summary-panel" data-section="cart_summary">
+          <OrderSummary items={[]} shippingFee={0} discount={0} title="訂單摘要" />
+        </div>
+      </div>
+
+      <template id="cart-row-tpl"><CartItemRow item={placeholderItem} /></template>
+    </div>
+  </section>
+
+  <script>
+    import { initCartPage } from "../scripts/cart";
+    initCartPage();
+  </script>
+</BaseLayout>
+
+<style>
+  .cart-main { background: var(--color-surface); }
+  .cart-loading { text-align: center; padding: 48px 20px; color: var(--color-muted); }
+  .cart-grid { display: grid; grid-template-columns: minmax(0, 1fr) 326px; gap: 58px; align-items: start; }
+  .cart-items-panel { min-width: 0; }
+  .cart-title-block { margin-bottom: 42px; }
+  .cart-title-block h1 {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: var(--page-title-size);
+    font-weight: var(--title-weight);
+    line-height: var(--title-line-height);
+  }
+  .cart-table-head {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 164px 176px 38px;
+    align-items: center;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--divider);
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .cart-table-head span:nth-child(2),
+  .cart-table-head span:nth-child(3) {
+    text-align: center;
+  }
+  /* Left items column: an open table, no card frame — the rows carry their
+     own dividers. */
+  .items-card { background: transparent; border: 0; border-radius: 0; padding: 0; }
+  .cart-list { display: block; }
+  .empty-cart { display: grid; gap: 14px; justify-items: center; max-width: 520px; margin-inline: auto; padding: 48px 20px 12px; text-align: center; }
+  @media (max-width: 980px) {
+    .cart-grid { grid-template-columns: 1fr; gap: 32px; }
+    .summary-panel { max-width: 420px; width: 100%; }
+  }
+  /* Kept in step with CartItemRow's card breakpoint (768px): below it the
+     rows become cards, so the four-column table head must go with them —
+     otherwise 641–768px renders a four-column header over stacked cards. */
+  @media (max-width: 768px) {
+    .cart-title-block { margin-bottom: 28px; }
+    .cart-table-head { display: none; }
+    .items-card { border: 0; padding: 0; background: transparent; }
+  }
+  @media (max-width: 430px) {
+    .empty-cart { padding: 36px 16px 8px; }
+  }
+</style>

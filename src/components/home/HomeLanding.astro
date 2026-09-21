@@ -1,0 +1,1245 @@
+---
+/**
+ * A single-page landing home, laid out from design-mockups/01-home.png:
+ *   hero → trust strip → catalogue → occasion cards → LINE contact strip
+ *
+ * One of two presets (see brand/copy.ts `home`). Unlike HomeMultipage this one
+ * SELLS — the catalogue block adds to the cart in place — so it needs variant
+ * ids, which the list endpoint does not carry. Hence the same list→detail pass
+ * the PDP's getStaticPaths makes; getProduct memoises per handle for the whole
+ * build, so the details are fetched once and shared between the two.
+ *
+ * The contact strip's phone / e-mail / service hours are DERIVED from the
+ * merchant record, not written in brand/copy.ts — same source the footer, the
+ * contact page and the legal pages read, so the four cannot disagree.
+ */
+import Button from "../common/Button.astro";
+import type { HomeLandingCopy } from "../../../brand/copy";
+import { faq as faqCopy } from "../../../brand/copy";
+import { formatMoney, identity } from "../../../brand/identity";
+import { ground } from "../../lib/ground";
+import { getProducts, getProduct, getMerchant } from "../../lib/commerce";
+import { sizeAttrs } from "../../lib/image-size";
+import { assertHeroCopy, heroAlign, heroCopyGround, heroMobileCopyGround, heroScrim } from "../../lib/hero-copy";
+import { flags } from "../../lib/features";
+import {
+  deriveLegalContact,
+  derivePaymentFaqAnswer,
+  deriveShippingFaqAnswer,
+} from "../../lib/content-derivation.mjs";
+
+interface Props {
+  copy: HomeLandingCopy;
+}
+
+const { copy } = Astro.props;
+const { hero, trust, catalogue, scenes, faq, lineCta } = copy;
+
+// Fail-visible, because nothing type-checks this build: a hero missing `tone`
+// used to render `home-hero--undefined` and stay green. See src/lib/hero-copy.ts.
+assertHeroCopy(hero, "homeLanding");
+
+/**
+ * What sits between the hero copy and the photograph — TWICE, because there are
+ * two photographs. `<picture>` swaps in the portrait crop on a phone, the copy
+ * lands on different pixels of it, and the measurement can disagree.
+ *
+ * The tone's own answer is the desktop default — a scrim under a light image,
+ * nothing under a dark one — and the phone inherits that unless a shop has
+ * measured the portrait crop and set `mobileCopyGround`. Both classes are
+ * always emitted; the stylesheet decides which one is live at which width.
+ */
+const copyGround = heroCopyGround(hero);
+const mobileGround = heroMobileCopyGround(hero);
+// Which side the copy sits on, and the shape of the wash under it. Both
+// default to what the hard-coded rule used to do — see src/lib/hero-copy.ts.
+const align = heroAlign(hero);
+const scrim = heroScrim(hero);
+
+/**
+ * How many columns the assurance strip runs, DERIVED from the entry count.
+ *
+ * It was `repeat(5)` in the stylesheet, which is a second statement of a number
+ * the array already makes — and the two duly disagreed: a shop with six
+ * assurances hand-edited the 5 to a 6 in its own copy of this file, which is a
+ * template edit made for a content reason and the exact drift `brand/` exists
+ * to prevent. The footer counts its columns in frontmatter for the same reason
+ * (CSS cannot see how many entries survived); this is that, one section up.
+ *
+ * Not a brand setting either. A shop that adds a sixth assurance has already
+ * said "six" by writing six of them; asking it to say six again in a second
+ * place is asking it to be wrong eventually.
+ *
+ * Up to six fill one desktop row. Beyond that a single row stops being
+ * readable, so the strip splits into two balanced rows (7 → 4+3, 8 → 4+4)
+ * rather than growing a seventh column. The two narrower steps cap rather than
+ * fix the count, so a strip of two entries is not stretched to three on a
+ * tablet: five reads 3+2 and six reads 3+3, both correct.
+ */
+const trustCount = trust.items.length;
+const trustCols = Math.min(trustCount <= 6 ? trustCount : Math.ceil(trustCount / 2), 6);
+const trustGrid = [
+  `--trust-cols:${trustCols}`,
+  `--trust-cols-md:${Math.min(3, trustCols)}`,
+  `--trust-cols-sm:${Math.min(2, trustCols)}`,
+].join(";");
+
+// `?sort=featured`, matching HomeMultipage. It was a bare call, so the one-page
+// preset was the only surface in the template taking the API's default order —
+// a shop that had arranged its catalogue saw that arrangement on every page
+// except its home page, which is the page the arrangement was for.
+//
+// It sorts rather than filters: measured against the live endpoint, the plain
+// list and `?sort=featured` return the same products in a different order. So
+// this changes the ORDER of the catalogue grid and nothing else.
+const list = await getProducts("?sort=featured");
+const details = await Promise.all(list.map((p) => getProduct(p.handle)));
+
+const cards = details.map((product: any) => {
+  const variants: any[] = product.variants?.length ? product.variants : [];
+  // The DETAIL payload carries no min_price/max_price — only the LIST does — so
+  // the card range is derived from the variants themselves. Reading
+  // variants[0].price instead would be betting on the API returning them
+  // cheapest-first, which nothing promises.
+  const prices: number[] = variants
+    .map((variant: any) => Number(variant.price))
+    .filter((price: number) => Number.isFinite(price) && price > 0);
+  const lowest = prices.length ? Math.min(...prices) : (product.min_price ?? 0);
+  const highest = prices.length ? Math.max(...prices) : (product.max_price ?? 0);
+  return {
+    id: product.id,
+    handle: product.handle,
+    title: product.title,
+    subtitle: product.subtitle ?? "",
+    image: product.thumbnail,
+    price: lowest,
+    /** Non-zero only when the variants actually span a range. */
+    priceTo: highest > lowest ? highest : 0,
+  };
+});
+
+const merchant = await getMerchant();
+const company = deriveLegalContact(merchant?.storefront_config);
+
+// The payment and shipping answers are PROJECTED from the same merchant config
+// checkout renders from — the questions live in brand/copy.ts, the answers to
+// those two do not. A one-page shop absorbing /faq must not grow a second,
+// drifting list on the way.
+/**
+ * Derived LAZILY — only a question that ASKS for one pays for it.
+ *
+ * Both answers used to be computed up front, and both throw by design when the
+ * merchant declares nothing to derive from: a frozen payment list outliving the
+ * real one is the failure they exist to prevent. That was safe for as long as
+ * every storefront sold something. `flags.commerce` made a shop with no payment
+ * methods and no shipping methods a legitimate configuration, and an eager
+ * derive turned it into a build that cannot render its home page — over two
+ * answers no question on the page had asked for.
+ *
+ * The fail-visible behaviour is unchanged where it means anything: an FAQ that
+ * DOES carry `derive: 'payment'` on a merchant that SELLS and declares no
+ * methods still throws.
+ *
+ * Lazy was not enough on its own, and four storefronts proved it. The shipped
+ * `faq.items` ASKS both questions, so a showcase shop still threw unless it
+ * edited the array — and the edit everyone reached for was emptying it, which
+ * is also how the whole FAQ band is removed. So the same defect arrived four
+ * times looking like four content decisions. A derive that cannot succeed on
+ * this shop's shape now drops its own question instead.
+ */
+const DERIVE_ANSWER: Record<string, () => string | null> = {
+  payment: () => derivePaymentFaqAnswer(merchant?.payment_config, { sells: flags.commerce }),
+  shipping: () => deriveShippingFaqAnswer(merchant?.shipping_config, { sells: flags.commerce }),
+};
+const faqItems = faqCopy.items.flatMap((item) => {
+  if (!item.derive) return [item];
+  const derived = DERIVE_ANSWER[item.derive]?.();
+  // An unrecognised `derive` key keeps the authored answer, as it always has.
+  if (derived === undefined) return [item];
+  if (derived === null) return [];
+  return [{ ...item, answer: derived }];
+});
+// Config-driven, never hardcoded — same source the PDP and checkout read.
+const freeShippingThreshold = merchant?.shipping_config?.free_shipping_threshold ?? null;
+---
+
+  <section
+    class:list={[
+      "home-hero",
+      `home-hero--${hero.tone}`,
+      /* The scrim, the panel, or the photograph plain — above 760px and below
+         it, separately. 'none' is a claim that the copy area was MEASURED, and
+         a phone is a different measurement: see brand/copy.ts → HeroCopy and
+         docs/PITFALLS.md #7. */
+      `home-hero--ground-${copyGround}`,
+      `home-hero--mground-${mobileGround}`,
+      /* Which side the copy sits on, and the wash that makes it legible there —
+         four independent switches, see brand/copy.ts → HeroCopy.align/.scrim.
+
+         A class appears only where it DEPARTS from the default, which is the
+         same rule the ground switches above follow: present when it does
+         something, absent when it does not. The defaults live in `.home-hero`
+         itself, so a `home-hero--scrim-standard` would match no rule at all —
+         and a class matching no rule is the precise shape of failure this
+         component's contract exists to make loud. It also means a shop that
+         has touched neither field emits the markup it emitted before either
+         field existed. */
+      align === "right" && "home-hero--align-right",
+      scrim.from === "right" && "home-hero--scrim-from-right",
+      scrim.tint === "dark" && "home-hero--scrim-dark",
+      scrim.depth !== "standard" && `home-hero--scrim-${scrim.depth}`,
+    ]}
+    id="hero"
+    data-section="hero"
+  >
+    {/* LCP element. The mobile source is listed first — <picture> takes the
+        first source whose media matches, so the portrait crop must outrank the
+        desktop image. fetchpriority="high" and no loading="lazy": this is the
+        one image on the page that must start downloading immediately. */}
+    <picture>
+      <source media="(max-width: 720px)" srcset={hero.mobileImage} />
+      <img
+        src={hero.image}
+        alt={hero.imageAlt}
+        {...sizeAttrs(hero.image)}
+        fetchpriority="high"
+        decoding="async"
+      />
+    </picture>
+    <div class="container hero-copy">
+      {/* Empty renders nothing, the way identity.logoSubtext does: a comp with
+          no line above the headline is a choice, and an empty <p> is a gap the
+          reader has to account for. */}
+      {hero.eyebrow && <p class="eyebrow">{hero.eyebrow}</p>}
+      <h1>{hero.title}</h1>
+      <p class="hero-body">{hero.description}</p>
+      <Button href={hero.ctaHref}>{hero.ctaLabel}</Button>
+    </div>
+  </section>
+
+  {trust.items.length > 0 && (
+    <section class="trust-strip" data-section="trust" {...ground("trust")}>
+      <div class="container trust-list" style={trustGrid}>
+        {trust.items.map((item, index) => (
+          <article>
+            {/* The marker is the entry's POSITION, not a picture of a number.
+                It used to be `icon`, and a shop with no glyphs of its own
+                pointed all five at the same placeholder — which draws a "1" —
+                so the strip counted 1 1 1 1 1. Nothing was incrementing,
+                because nothing was counting. A shop that HAS glyphs supplies
+                `icon` and gets them instead, masked so they take the palette
+                (pitfall #5). */}
+            {item.icon ? (
+              <span class="trust-glyph" style={`--glyph: url('${item.icon}')`} aria-hidden="true"></span>
+            ) : (
+              <span class="trust-num" aria-hidden="true">{index + 1}</span>
+            )}
+            <h2>{item.title}</h2>
+            <p>{item.text}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  )}
+
+  {cards.length > 0 && (
+    <section class="section catalogue" id="catalogue" data-section="catalogue" {...ground("catalogue")}>
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">{catalogue.eyebrow}</p>
+            <h2 class="section-title">{catalogue.title}</h2>
+            <p class="lead">{catalogue.lead}</p>
+          </div>
+          {/* A one-page shop has nowhere to send anyone from here — this block
+              already IS the whole catalogue — so the link is optional and its
+              absence removes the anchor rather than emptying it. */}
+          {catalogue.linkLabel && (
+            <a class="section-head-link" href={catalogue.linkHref}>{catalogue.linkLabel}</a>
+          )}
+        </div>
+
+        <div class="catalogue-grid">
+          {cards.map((card) => (
+            <a class="catalogue-card" href={`/products/${card.handle}`} aria-label={card.title} {...ground("catalogueCard")}>
+              <span class="catalogue-media">
+                {/* Product images are remote, so their intrinsic size can't be
+                    read at build time. The attributes only have to carry the
+                    right ratio; the CSS aspect-ratio below is authoritative. */}
+                <img src={card.image} alt={card.title} width="800" height="800" loading="lazy" decoding="async" />
+              </span>
+              <span class="catalogue-body">
+                <span class="catalogue-name">{card.title}</span>
+                {card.subtitle && <span class="catalogue-subtitle">{card.subtitle}</span>}
+                <span class="catalogue-price">
+                  {card.priceTo
+                    ? `${formatMoney(card.price)} – ${formatMoney(card.priceTo)}`
+                    : formatMoney(card.price)}
+                </span>
+              </span>
+            </a>
+          ))}
+        </div>
+
+        {/* A promise about a checkout, so only a shop that HAS one makes it.
+            Same rule as the product page's copy of this note. */}
+        {flags.commerce && freeShippingThreshold && (
+          <p class="catalogue-note">滿 {formatMoney(freeShippingThreshold)} 免運費</p>
+        )}
+      </div>
+    </section>
+  )}
+
+  {scenes.items.length > 0 && (
+    <section class="section scenes" id="scenes" data-section="scenes" {...ground("scenes")}>
+      <div class="container">
+        <h2 class="section-title scenes-title">{scenes.title}</h2>
+        <div class="scene-grid">
+          {scenes.items.map((item) => (
+            <article class="scene-card" {...ground("sceneCard")}>
+              <img src={item.image} alt={item.title} {...sizeAttrs(item.image)} loading="lazy" decoding="async" />
+              <div>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  {faqItems.length > 0 && (
+    <section class="section faq-block" id="faq" data-section="faq">
+      <div class="container faq-grid">
+        <div class="faq-head">
+          <p class="eyebrow">{faq.eyebrow}</p>
+          <h2 class="section-title">{faq.title}</h2>
+          <p class="lead">{faq.lead}</p>
+        </div>
+        {/* <details> disclosure: open/close is the browser's, so every answer is
+            readable before — and without — JavaScript, and all of them are in
+            the HTML for a crawler either way. */}
+        <div class="faq-list">
+          {faqItems.map((item, index) => (
+            <details open={index === 0}>
+              <summary>{item.question}</summary>
+              <p>{item.answer}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  {/* The contact strip: the pitch on the left, the derived company details in
+      the middle, the QR on the right. Every glyph here is INLINE, so
+      `currentColor` resolves and each one follows the palette — the trap in
+      pitfall #5 is external <img> SVGs, not these. */}
+  <section class="line-strip" id="contact" data-section="line_cta">
+    <div class="container line-grid">
+      <div class="line-pitch">
+        <span class="line-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path fill="currentColor" d="M12 3.2c-5.13 0-9.3 3.4-9.3 7.58 0 3.75 3.3 6.89 7.78 7.48.3.07.71.2.82.46.1.24.06.6.03.85l-.13.79c-.4.23-.19.92.8.52.99-.4 5.35-3.15 7.3-5.39 1.35-1.48 1.99-2.98 1.99-4.71 0-4.18-4.17-7.58-9.29-7.58Z"></path>
+            <path fill="var(--color-line)" d="M8.2 8.95h-.65a.18.18 0 0 0-.18.18v4.05c0 .1.08.18.18.18h.65c.1 0 .18-.08.18-.18V9.13a.18.18 0 0 0-.18-.18Zm4.49 0h-.65a.18.18 0 0 0-.18.18v2.41l-1.86-2.51-.01-.02-.01-.01h-.72a.18.18 0 0 0-.18.18v4.05c0 .1.08.18.18.18h.65c.1 0 .18-.08.18-.18v-2.4l1.86 2.51.4.04h.7c.1 0 .18-.08.18-.18V9.13a.18.18 0 0 0-.18-.18Zm-5.94 3.4H5.03V9.13a.18.18 0 0 0-.18-.18H4.2a.18.18 0 0 0-.18.18v4.05c0 .05.02.09.05.12.03.03.08.05.13.05h2.55c.1 0 .18-.08.18-.18v-.65a.18.18 0 0 0-.18-.18Zm9.96-3.4h-2.55a.18.18 0 0 0-.18.18v4.05c0 .1.08.18.18.18h2.55c.1 0 .18-.08.18-.18v-.65a.18.18 0 0 0-.18-.18h-1.72v-.66h1.72c.1 0 .18-.08.18-.18v-.65a.18.18 0 0 0-.18-.18h-1.72v-.67h1.72c.1 0 .18-.08.18-.18v-.65a.18.18 0 0 0-.18-.18Z"></path>
+          </svg>
+        </span>
+
+        <div class="line-copy">
+          <h2>{lineCta.title.replace("{channel}", identity.line.id)}</h2>
+          {lineCta.lines.map((line) => <p>{line}</p>)}
+          <a class="line-btn" href={identity.line.addFriendUrl}>
+            <span>{lineCta.buttonLabel}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14.5M13 6.2 19.2 12 13 17.8"></path></svg>
+          </a>
+        </div>
+      </div>
+
+      {/* Derived, not authored — the same company block the footer renders. */}
+      <ul class="line-details">
+        <li>
+          <span class="line-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6.6 3.2h2.9l1.5 3.9-2 1.5a11.2 11.2 0 0 0 5 5l1.5-2 3.9 1.5v2.9a2 2 0 0 1-2.2 2A15.6 15.6 0 0 1 4.6 5.4a2 2 0 0 1 2-2.2z"></path></svg></span>
+          <div><span class="line-label">客服專線</span><span class="line-value">{company.phone}</span></div>
+        </li>
+        <li>
+          <span class="line-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.2" y="5.6" width="17.6" height="12.8" rx="2"></rect><path d="m3.6 7 8.4 5.9L20.4 7"></path></svg></span>
+          <div><span class="line-label">客服信箱</span><span class="line-value">{identity.contact.email}</span></div>
+        </li>
+        <li>
+          <span class="line-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"></circle><path d="M12 7.4V12l3 1.9"></path></svg></span>
+          <div><span class="line-label">服務時間</span><span class="line-value">{company.serviceHours}</span></div>
+        </li>
+      </ul>
+
+      {/* No QR on file → no column. A square that scans to nothing is worse
+          than an absent one. */}
+      {identity.assets.lineQr && (
+        <figure class="line-qr">
+          <img src={identity.assets.lineQr} alt={lineCta.qrCaption} width="116" height="116" loading="lazy" decoding="async" />
+          <figcaption>{lineCta.qrCaption}</figcaption>
+        </figure>
+      )}
+    </div>
+  </section>
+
+
+<style>
+  /* Laid out from design-mockups/01-home.png. Every colour is a var(--…) whose
+     value is sampled from that comp and declared once in brand/identity.ts —
+     `npm run audit:color` fails the build on a literal. */
+
+  .home-hero {
+    position: relative;
+    min-height: min(720px, 100vh);
+    display: grid;
+    align-items: center;
+    overflow: hidden;
+    background: var(--color-soft);
+  }
+
+  .home-hero picture,
+  .home-hero img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .home-hero img {
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* --- Which ground is live -------------------------------------------------
+     The three grounds are written ONCE, below, and read two switches. These
+     rules set the switches, and they are the only place the breakpoint appears:
+     above 760px the desktop answer decides, at 760px and below the phone's
+     does. Nothing has to be undone at the breakpoint, because each media block
+     only ever sets its own.
+
+     A switch is `block` when that ground is live and ABSENT when it is not, so
+     the rules below can read it as `var(--hero-scrim, none)` — which is exactly
+     what `display` wants, and means `--ground-none` needs no rule of its own.
+
+     The panel carries its inks in the same rule as its switch, deliberately: a
+     panel without reversed-out copy is a dark slab over dark text, so the two
+     must not be separately settable.
+
+     THE EYEBROW READS --color-on-dark-muted, and it used to read
+     --color-footer-text. Same job, same ground, same floor — but the footer ink
+     was standing in for a muted reversed ink because for a long time the
+     palette declared no other. That stand-in made `footer-text` an ink on TWO
+     grounds at once: this near-black wash, and the footer's own background. A
+     shop wanting a PALE footer then needed one value light enough to clear AA
+     here and dark enough to clear it there, and there is no such value —
+     sweeping all 256 greys on a real palette, the count satisfying both is
+     zero. Pointing these rules at the ink the palette declares for exactly this
+     job frees the footer to be any colour it likes. Nothing left the audit:
+     `on-dark-muted` was already an ink on the dark ground. */
+  @media (min-width: 761px) {
+    .home-hero--ground-scrim { --hero-scrim: block; }
+
+    /* A DARK scrim is a dark ground, so it owes the copy the same reversed inks
+       the panel owes it. The panel carries its inks beside its switch because a
+       ground without them is a dark slab under dark text; a dark wash is that
+       same bargain with a softer edge, and leaving it out shipped a hero whose
+       eyebrow sat at 4.00:1 over its own ground — measured, not reasoned.
+       Scoped to the scrim being LIVE at this width: the tint class is set
+       whatever the ground, and reversing ink under no wash would be worse than
+       the bug it fixes. */
+    .home-hero--ground-scrim.home-hero--scrim-dark {
+      --hero-ink: var(--color-on-dark);
+      --hero-eyebrow-ink: var(--color-on-dark-muted);
+      --hero-button-edge: var(--color-on-dark);
+    }
+
+    .home-hero--ground-panel {
+      --hero-panel: block;
+      --hero-ink: var(--color-on-dark);
+      --hero-eyebrow-ink: var(--color-on-dark-muted);
+      --hero-button-edge: var(--color-on-dark);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .home-hero--mground-scrim { --hero-scrim: block; }
+
+    /* A DARK scrim is a dark ground, so it owes the copy the same reversed inks
+       the panel owes it. The panel carries its inks beside its switch because a
+       ground without them is a dark slab under dark text; a dark wash is that
+       same bargain with a softer edge, and leaving it out shipped a hero whose
+       eyebrow sat at 4.00:1 over its own ground — measured, not reasoned.
+       Scoped to the scrim being LIVE at this width: the tint class is set
+       whatever the ground, and reversing ink under no wash would be worse than
+       the bug it fixes. */
+    .home-hero--mground-scrim.home-hero--scrim-dark {
+      --hero-ink: var(--color-on-dark);
+      --hero-eyebrow-ink: var(--color-on-dark-muted);
+      --hero-button-edge: var(--color-on-dark);
+    }
+
+    .home-hero--mground-panel {
+      --hero-panel: block;
+      --hero-ink: var(--color-on-dark);
+      --hero-eyebrow-ink: var(--color-on-dark-muted);
+      --hero-button-edge: var(--color-on-dark);
+    }
+  }
+
+  /* Legibility scrim — the cheapest of the three grounds, and what a pale hero
+     gets unless brand/copy.ts says otherwise. A dark photograph gets light copy
+     instead (below) and no wash at all: a picture chosen for its dark side does
+     not need rescuing, and washing it would flatten the thing that made it worth
+     choosing. Built from a token plus `transparent`, so no colour literal
+     enters src/.
+
+     `none` is the third answer and has no rule anywhere: it is a shop saying it
+     MEASURED the copy area and the photograph carries it. The wash is solid
+     --color-surface for its first 26%, which on some crops reads less like a
+     wash and more like the picture being missing from that quarter of the
+     frame, so "keep the photograph" has to be sayable. */
+  /* The wash is assembled from four switches rather than written out, so the
+     eight useful combinations do not need eight rules. Each switch sets one
+     custom property and the single gradient below reads all of them.
+
+     The defaults ARE the old hard-coded rule: 100deg, --color-surface, solid
+     to 26%, gone by 68%. A hero that declares no scrim fields resolves to that
+     gradient to the percentage point. */
+  .home-hero {
+    --scrim-angle: 100deg;
+    --scrim-tint: var(--color-surface);
+    /* The colour the wash actually paints. Kept separate from --scrim-tint so
+       the opaque depths pass the token STRAIGHT through: routing an opaque
+       colour through color-mix() is a no-op that still re-serialises it into
+       another colour space, which would have changed the computed value on
+       every existing hero to say the same white a different way. */
+    --scrim-color: var(--scrim-tint);
+    --scrim-solid: 26%;
+    --scrim-end: 68%;
+  }
+
+  /* 100deg and 260deg are mirror images about the vertical, so the wash enters
+     from the opposite side at the same rake. */
+  .home-hero--scrim-from-right { --scrim-angle: 260deg; }
+
+  /* The panel's near-black, for a photograph that wants its copy reversed out
+     rather than darkened onto. Same token the copy panel uses, so a shop that
+     chooses both gets one colour rather than two that nearly match. */
+  .home-hero--scrim-dark { --scrim-tint: var(--cta-dark); }
+
+  /* Depth is where the wash starts letting the picture through and where it
+     finishes. 'light' never goes fully opaque — it is a veil over a photograph
+     that nearly carries the copy already. */
+  .home-hero--scrim-light {
+    --scrim-solid: 0%;
+    --scrim-end: 55%;
+    /* The one depth that is translucent. color-mix keeps the alpha out of the
+       token, so brand/ never declares a see-through twin of a colour it
+       already has, and audit:color still finds no literal in src/. */
+    --scrim-color: color-mix(in srgb, var(--scrim-tint) 62%, transparent);
+  }
+
+  .home-hero--scrim-heavy {
+    --scrim-solid: 42%;
+    --scrim-end: 82%;
+  }
+
+  .home-hero::after {
+    display: var(--hero-scrim, none);
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      var(--scrim-angle),
+      var(--scrim-color) 0%,
+      var(--scrim-color) var(--scrim-solid),
+      transparent var(--scrim-end)
+    );
+  }
+
+  .hero-copy {
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-copy > * {
+    max-width: 520px;
+  }
+
+  /* --- Which side the copy sits on (hero.align) ---------------------------
+     .hero-copy is also .container, which owns the page gutter and centres
+     itself, so the copy cannot be moved by moving the block — that would take
+     the gutter with it and leave the hero starting somewhere no other section
+     does. What moves is the 520px measure INSIDE the container: pushed to the
+     far edge with an auto margin, and its text set to the same side.
+
+     The panel follows. It is drawn from the copy's leading edge outwards, so
+     on a right-aligned hero it has to grow from the right or it would sit
+     under the empty half of the block. */
+  .home-hero--align-right .hero-copy > * {
+    margin-left: auto;
+    text-align: right;
+  }
+
+  /* THE BUTTON NEEDED ITS OWN LINE, and the reason is easy to read past.
+     `margin-left: auto` moves a BLOCK-level box. `.button` is `display:
+     inline-flex`, and an auto margin on an inline-level box computes to zero —
+     so every other child of .hero-copy moved to the right edge and the button
+     stayed exactly where it was, at the far left of the hero, under
+     right-aligned copy. The `text-align: right` above did not save it either:
+     that rule sets alignment INSIDE each child, and what positions an
+     inline-level box is its PARENT's text-align, which .hero-copy itself never
+     sets.
+
+     Setting it on .hero-copy is the one-line fix and it is also the smallest:
+     the children already declare their own alignment, so nothing else changes. */
+  .home-hero--align-right .hero-copy {
+    text-align: right;
+  }
+
+  .home-hero--align-right .hero-copy::before {
+    left: auto;
+    right: calc(-1 * var(--panel-pad));
+  }
+
+  /* --- Hero copy panel (copyGround / mobileCopyGround: "panel") -----------
+     A ground of the shop's own under the hero copy, for the hero image that
+     cannot carry the copy on its own.
+
+     WHY IT IS A PSEUDO-ELEMENT and not a background on .hero-copy: .hero-copy
+     also carries .container, which owns the page gutter and centres itself.
+     Give it a width and the copy leaves the left edge every other block on the
+     page starts from, and the panel centres itself in the middle of the hero.
+     So the panel is drawn BEHIND, sized to the copy measure (520px — the same
+     cap .hero-copy > * uses) plus its own padding, and the layout is untouched.
+
+     `z-index: -1` puts it under the copy without leaving .hero-copy's stacking
+     context, so it stays above the photograph. */
+  .hero-copy {
+    --panel-pad: clamp(24px, 3vw, 44px);
+  }
+
+  .hero-copy::before {
+    display: var(--hero-panel, none);
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset-block: calc(-1 * var(--panel-pad));
+    left: calc(-1 * var(--panel-pad));
+    width: calc(520px + var(--panel-pad) * 2);
+    max-width: calc(100% + var(--panel-pad) * 2);
+    background: var(--cta-dark);
+  }
+
+  /* The button keeps its own fill and takes a light EDGE on the panel. A CTA
+     whose colour is near the panel's — wood on near-black measured 1.41:1 on
+     the shop this came from — has a boundary nobody can see, and WCAG wants
+     3:1 for the boundary of a control. --color-on-dark is already audited
+     against --cta-dark, so the edge is legible without touching the shop's CTA
+     colour. Off the panel the fallback restates Button.astro's own edge. */
+  .hero-copy :global(.button) {
+    border-color: var(--hero-button-edge, var(--color-cta));
+  }
+
+  /* Each ink is "what the panel needs, or what this hero would have used".
+     Every panel value is a pair audit:color ALREADY checks against --cta-dark,
+     so the hero cannot drift out of AA without the build saying so, and no
+     token had to be invented for it. */
+  .hero-copy .eyebrow {
+    color: var(--hero-eyebrow-ink, var(--color-cta));
+    letter-spacing: 0.22em;
+  }
+
+  .home-hero--dark .hero-copy h1,
+  .home-hero--dark .hero-copy .hero-body {
+    color: var(--hero-ink, var(--color-on-dark));
+  }
+
+  .hero-copy h1 {
+    margin: 18px 0 20px;
+    color: var(--hero-ink, var(--text-primary));
+    /* The hero title reads from its own family, so setting it apart from the
+       rest of the headings is a brand/ edit rather than a restyle. Falls back
+       to --font-serif for a brand that never declares one. */
+    font-family: var(--font-hero, var(--font-serif));
+    font-size: var(--hero-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: 0.06em;
+    line-height: var(--title-line-height);
+  }
+
+  .hero-copy .hero-body {
+    margin: 0 0 30px;
+    color: var(--hero-ink, var(--text-secondary));
+    font-size: var(--body-text-size);
+    line-height: 1.9;
+    /* `\n` in brand/copy.ts is an authored line break, not accidental
+       whitespace — the copy is written to break at a specific word. */
+    white-space: pre-line;
+  }
+
+  /* --- Trust strip --------------------------------------------------------- */
+
+  .trust-strip {
+    padding-block: 56px 52px;
+    background: var(--color-trust-bg);
+  }
+
+  /* Columns come from the frontmatter, which counted the entries — CSS cannot.
+     Same mechanism the footer uses for its link columns. */
+  .trust-list {
+    display: grid;
+    grid-template-columns: repeat(var(--trust-cols), minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .trust-list article {
+    min-width: 0;
+    text-align: center;
+  }
+
+  /* The number and a supplied glyph occupy the same 44px slot, so a shop that
+     adds artwork later does not reflow the strip. Both take --color-cta: the
+     glyph through a mask, because an <img> could not (pitfall #5). */
+  .trust-num,
+  .trust-glyph {
+    display: block;
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 16px;
+  }
+
+  .trust-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--ground-accent);
+    border-radius: 50%;
+    color: var(--ground-accent);
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .trust-glyph {
+    background: var(--ground-accent);
+    -webkit-mask: var(--glyph) center / contain no-repeat;
+    mask: var(--glyph) center / contain no-repeat;
+  }
+
+  .trust-list h2 {
+    margin: 0;
+    color: var(--ground-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: 0.04em;
+    line-height: var(--card-title-line-height);
+  }
+
+  .trust-list p {
+    margin: 8px 0 0;
+    color: var(--ground-ink-muted);
+    font-size: var(--description-text-size);
+    line-height: var(--description-line-height);
+  }
+
+  /* --- Catalogue ----------------------------------------------------------- */
+
+  .catalogue {
+    background: var(--color-catalogue-bg);
+  }
+
+  /* Centred head with flanking rules, as in the comp. */
+  .section-head {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+    text-align: center;
+  }
+
+  .section-head .section-title {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: var(--space-4);
+    width: 100%;
+    margin: var(--space-1) 0 0;
+    letter-spacing: 0.14em;
+  }
+
+  /* The flanking rules read the GROUND's hairline, not the pale-ground
+     border token. On a dark band the pale one is the same near-white as the
+     band itself, so the line was there and invisible. */
+  .section-head .section-title::before,
+  .section-head .section-title::after {
+    content: "";
+    height: 1px;
+    background: var(--ground-rule);
+  }
+
+  .section-head .lead {
+    margin: 0;
+    max-width: 620px;
+  }
+
+  .section-head-link {
+    color: var(--ground-ink-soft);
+    font-size: var(--description-text-size);
+    line-height: 1.5;
+    border-bottom: 1px solid var(--ground-rule);
+    padding-bottom: 2px;
+  }
+
+  .catalogue-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .catalogue-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--ground-rule);
+    border-radius: var(--radius-md);
+    background: var(--color-catalogue-card-bg);
+  }
+
+  .catalogue-media img {
+    width: 100%;
+    aspect-ratio: var(--product-image-ratio);
+    object-fit: cover;
+    background: var(--thumb-bg);
+  }
+
+  .catalogue-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    padding: 16px 16px 18px;
+    text-align: center;
+  }
+
+  .catalogue-name {
+    display: block;
+    color: var(--ground-ink-strong);
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+
+  .catalogue-subtitle {
+    display: block;
+    color: var(--ground-ink-muted);
+    font-size: var(--meta-text-size);
+    line-height: var(--description-line-height);
+  }
+
+  .catalogue-price {
+    display: block;
+    margin-top: auto;
+    padding-top: var(--space-1);
+    /* Its own token, falling back to the ground's soft ink. A price is the one
+       number a shop reprices for emphasis, and it used to share --text-secondary
+       with every other secondary line on the page. */
+    color: var(--text-price, var(--ground-ink-soft));
+    font-family: var(--font-serif);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .catalogue-note {
+    margin: var(--space-5) 0 0;
+    color: var(--ground-ink-muted);
+    font-size: var(--description-text-size);
+    text-align: center;
+  }
+
+  /* --- Occasion cards ------------------------------------------------------ */
+
+  .scenes {
+    background: var(--color-scenes-bg);
+  }
+
+  .scenes-title {
+    margin: 0 0 var(--space-6);
+    text-align: center;
+    letter-spacing: 0.14em;
+  }
+
+  .scene-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .scene-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--ground-rule);
+    border-radius: var(--radius-md);
+    background: var(--color-scene-card-bg);
+  }
+
+  .scene-card img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--thumb-bg);
+  }
+
+  .scene-card > div {
+    padding: 18px 16px 20px;
+    text-align: center;
+  }
+
+  .scene-card h3 {
+    margin: 0;
+    color: var(--ground-ink-strong);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: 0.08em;
+    line-height: var(--card-title-line-height);
+  }
+
+  .scene-card p {
+    margin: 8px 0 0;
+    color: var(--ground-ink-muted);
+    font-size: var(--description-text-size);
+    line-height: var(--description-line-height);
+  }
+
+  /* --- FAQ disclosure ------------------------------------------------------ */
+
+  .faq-block {
+    background: var(--color-surface);
+  }
+
+  .faq-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(24px, 4vw, 56px);
+  }
+
+  .faq-head {
+    display: grid;
+    gap: var(--space-2);
+    justify-items: start;
+  }
+
+  .faq-head .lead {
+    margin: 0;
+  }
+
+  .faq-list {
+    display: grid;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .faq-list details {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .faq-list summary {
+    padding: 18px 0;
+    color: var(--color-ink);
+    font-size: var(--body-text-size);
+    line-height: 1.6;
+    cursor: pointer;
+  }
+
+  .faq-list p {
+    margin: 0;
+    padding: 0 0 20px;
+    color: var(--text-secondary);
+    font-size: var(--description-text-size);
+    line-height: var(--description-line-height);
+  }
+
+  @media (max-width: 900px) {
+    .faq-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* --- The contact strip -----------------------------------------------------
+     The band above the footer: the pitch, the derived company details, the QR.
+
+     Its ground is its OWN token rather than --cta-dark. Sharing --cta-dark made
+     it the same colour as the footer — identical in the template default, and
+     within a rounding error of it in every warm palette tried since — so the
+     two ran together into one slab and the CTA stopped reading as a call to
+     action. They are adjacent; nothing else painted --cta-dark is. The pair is
+     checked: audit-color.mjs fails the build when contact-bg and footer-bg are
+     not visibly apart, and when contact-text does not clear AA on contact-bg.
+
+     The band is not required to be dark. A shop whose comp puts a pale panel
+     here sets contact-bg pale and contact-text to its ink; nothing below reads
+     --color-on-dark, so the block follows the palette either way. */
+
+  .line-strip {
+    padding-block: clamp(36px, 5vw, 56px);
+    background: var(--color-contact-bg);
+    color: var(--color-contact-text);
+  }
+
+  .line-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: clamp(24px, 4vw, 56px);
+  }
+
+  .line-pitch {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 18px;
+  }
+
+  /* LINE's own green, and LINE's own mark reversed out of it. This square is
+     the channel's, not the shop's — the brand accent here would misrepresent
+     whose account it is. */
+  .line-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    flex: none;
+    border-radius: var(--radius-sm);
+    background: var(--color-line);
+    color: var(--color-on-dark);
+  }
+
+  .line-mark svg {
+    width: 34px;
+    height: 34px;
+  }
+
+  .line-copy h2 {
+    margin: 0;
+    color: var(--color-contact-text);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: 0.06em;
+    line-height: var(--card-title-line-height);
+  }
+
+  .line-copy p {
+    margin: 8px 0 0;
+    color: var(--color-contact-text);
+    font-size: var(--description-text-size);
+    line-height: 1.7;
+    opacity: 0.78;
+  }
+
+  .line-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    min-height: 46px;
+    padding: 12px 26px;
+    border-radius: var(--radius-sm);
+    background: var(--color-cta);
+    color: var(--color-cta-text);
+    font-size: var(--button-text-size);
+    letter-spacing: var(--button-letter-spacing);
+  }
+
+  .line-btn:hover {
+    opacity: 0.9;
+  }
+
+  .line-btn svg {
+    width: 17px;
+    height: 17px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .line-details {
+    display: grid;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .line-details li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  /* The band ground is a free choice, so the glyph takes the band FOREGROUND.
+     It used to take --color-cta, which is invisible whenever a palette puts the
+     button colour and the band colour near each other — the template default
+     had both at the same value. */
+  .line-glyph {
+    display: inline-flex;
+    flex: none;
+    color: var(--color-contact-text);
+    opacity: 0.85;
+  }
+
+  .line-glyph svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .line-label,
+  .line-value {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .line-label {
+    color: var(--color-contact-text);
+    font-size: var(--meta-text-size);
+    line-height: 1.5;
+    opacity: 0.72;
+  }
+
+  .line-value {
+    color: var(--color-contact-text);
+    font-size: var(--description-text-size);
+    line-height: 1.6;
+  }
+
+  .line-qr {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+  }
+
+  .line-qr img {
+    display: block;
+    width: 116px;
+    height: 116px;
+  }
+
+  .line-qr figcaption {
+    color: var(--color-ink);
+    font-size: var(--meta-text-size);
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  /* --- Breakpoints ---------------------------------------------------------
+     Mirrors the template's own: ProductGrid switches at 900px and 560px, and
+     the home hero re-anchors at 760px. */
+
+  @media (max-width: 1100px) {
+    /* The pitch takes the full width and the details sit beside the QR — three
+       across is where the e-mail address starts breaking mid-word. */
+    .line-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+
+    .line-pitch {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* The two narrow steps CAP the count rather than fixing it: `min(3, cols)`,
+     so five entries read 3+2 and six read 3+3, and a strip of two is not
+     stretched across three columns because the viewport got narrower. */
+  @media (max-width: 1024px) {
+    .trust-list {
+      grid-template-columns: repeat(var(--trust-cols-md), minmax(0, 1fr));
+      row-gap: var(--space-5);
+    }
+  }
+
+  @media (max-width: 900px) {
+    .catalogue-grid,
+    .scene-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
+    /* The hero shortens, and that is the whole of the change: the copy stays
+       vertically CENTRED, same as the desktop rule it inherits.
+
+       It used to be `align-items: start`, which put a ~300px copy block at the
+       top of a 620px hero and left the bottom half as bare photograph. On a
+       phone that reads as the section having been cut off rather than composed
+       — there is no second column for the eye to go to, so the empty half is
+       simply empty.
+
+       The image keeps `center top`: a portrait crop is framed from its top
+       edge, and moving the COPY is not a reason to re-anchor the PICTURE.
+
+       This is also what makes the panel work here. `hero.copyGround: 'panel'`
+       draws on .hero-copy::before, which is positioned against .hero-copy
+       itself — centre the grid item and the panel moves with it, because it is
+       part of it. Centring the copy some other way (a margin, a translate on
+       the children) would have left the panel behind. */
+    .home-hero {
+      min-height: 620px;
+    }
+
+    .home-hero img {
+      object-position: center top;
+    }
+
+    .trust-list {
+      grid-template-columns: repeat(var(--trust-cols-sm), minmax(0, 1fr));
+    }
+
+    .line-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .catalogue-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-3);
+    }
+
+    .scene-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .section-head .section-title {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .section-head .section-title::before,
+    .section-head .section-title::after {
+      display: none;
+    }
+  }
+</style>

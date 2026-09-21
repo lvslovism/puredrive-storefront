@@ -1,0 +1,252 @@
+---
+/**
+ * Order result.
+ *
+ * One page, three outcomes — paid, awaiting payment, failed. Which one shows is
+ * decided by `checkout.ts → deriveOrderState` from the ORDER, never from the URL:
+ * the customer arrives here by a redirect that carries no result, and the same
+ * payment method reaches different outcomes. All three are written out below and
+ * the container's state class reveals one, so the wording lives in the page
+ * rather than in a string table in the script.
+ *
+ * Reads ?order_id (+ ?order_token for guests); members are authorized by Bearer.
+ * Every amount comes from the orders API.
+ */
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatMoney } from "../../../brand/identity";
+import { checkout as checkoutCopy, notFound } from "../../../brand/copy";
+import { safeHref } from "../../lib/features";
+
+const r = checkoutCopy.result;
+const keepShoppingHref = safeHref(notFound.secondaryCtaHref);
+---
+
+<BaseLayout title="訂單結果" description={checkoutCopy.completeMetaDescription}>
+  <section class="result-hero" data-section="order_result_hero">
+    <div class="container hero-inner">
+      <h1>訂單結果</h1>
+      <nav class="crumb" aria-label="麵包屑">
+        <a href="/">首頁</a>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">訂單結果</span>
+      </nav>
+    </div>
+  </section>
+
+  <section class="section result-main" data-complete-page>
+    <div class="container">
+      <p class="state-msg" data-complete-loading>訂單資訊載入中…</p>
+      <p class="state-msg err" data-complete-error hidden></p>
+
+      <div class="result-card" data-complete-content hidden>
+        <div class="status" data-o-state>
+          <span class="status-icon" aria-hidden="true">
+            <svg class="ic-paid" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11"></circle><path class="glyph" d="m7 12.4 3.4 3.4L17 9.2"></path></svg>
+            <svg class="ic-failed" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11"></circle><path class="glyph" d="m8.6 8.6 6.8 6.8M15.4 8.6l-6.8 6.8"></path></svg>
+            <svg class="ic-pending" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11"></circle><path class="glyph" d="M12 6.6V12l3.4 2.2"></path></svg>
+          </span>
+
+          <div class="status-copy">
+            <h2 class="v-paid">{r.paidTitle}</h2>
+            <p class="v-paid">{r.paidLead}</p>
+
+            <h2 class="v-pending">{r.pendingTitle}</h2>
+            <p class="v-pending">{r.pendingLead}</p>
+
+            <h2 class="v-failed">{r.failedTitle}</h2>
+            <p class="v-failed">{r.failedLead}</p>
+
+            <p class="cod-note" data-o-cod-note hidden>{r.codNote}</p>
+          </div>
+        </div>
+
+        <div class="meta-strip">
+          <div><span>訂單編號</span><strong data-o-number>—</strong></div>
+          <div><span>訂單日期</span><strong data-o-date>—</strong></div>
+          <div><span>訂單狀態</span><strong class="meta-status" data-o-status>—</strong></div>
+        </div>
+
+        <div class="info-grid">
+          <section class="info-col">
+            <h3>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M3 10h18"></path></svg>
+              付款資訊
+            </h3>
+            <dl>
+              <div><dt>付款方式</dt><dd data-o-payment>—</dd></div>
+              <div><dt>付款金額</dt><dd data-o-pay-amount>—</dd></div>
+              <div><dt>付款狀態</dt><dd data-o-pay-status>—</dd></div>
+              <div data-o-paid-at-row hidden><dt>付款時間</dt><dd data-o-paid-at>—</dd></div>
+            </dl>
+          </section>
+
+          <section class="info-col">
+            <h3>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="3.2"></circle><path d="M5.5 19c1.2-3 3.7-4.6 6.5-4.6S17.3 16 18.5 19"></path></svg>
+              收件人資訊
+            </h3>
+            {/* No e-mail row: the orders API does not return one, and a blank
+                labelled field reads as a shop that lost it. */}
+            <dl>
+              <div><dt>收件人</dt><dd data-o-recipient>—</dd></div>
+              <div><dt>聯絡電話</dt><dd data-o-recipient-phone>—</dd></div>
+            </dl>
+          </section>
+
+          <section class="info-col">
+            <h3>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3z"></path><path d="M14 10h4l3 3v3h-7z"></path><circle cx="7" cy="17.5" r="1.6"></circle><circle cx="17" cy="17.5" r="1.6"></circle></svg>
+              配送資訊
+            </h3>
+            <dl>
+              <div><dt>配送方式</dt><dd data-o-shipping>—</dd></div>
+              <div><dt>收件地址</dt><dd data-o-address>—</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <div class="payinfo" data-o-payinfo hidden>
+          <h3 data-o-payinfo-title>繳費資訊</h3>
+          <p class="payinfo-hold">{r.pendingLead}</p>
+          <div class="payinfo-rows" data-o-payinfo-rows></div>
+          <p class="payinfo-expire">繳費期限　<strong data-o-payinfo-expire>—</strong></p>
+        </div>
+
+        <div class="items">
+          <div class="items-head">
+            <span class="col-name">商品</span>
+            <span class="col-price">單價</span>
+            <span class="col-qty">數量</span>
+            <span class="col-sub">小計</span>
+          </div>
+          <div class="items-body" data-o-items></div>
+        </div>
+
+        <div class="totals">
+          <div><span>商品小計</span><strong data-o-items-total>{formatMoney(0)}</strong></div>
+          <div><span>運費</span><strong data-o-shipping-fee>{formatMoney(0)}</strong></div>
+          <div data-o-discount-row hidden><span>折扣優惠</span><strong class="is-discount" data-o-discount>- {formatMoney(0)}</strong></div>
+          <div class="grand"><span>訂單總計</span><strong data-o-grand>{formatMoney(0)}</strong></div>
+        </div>
+
+        <div class="actions">
+          <a class="btn btn-primary" href="/account">查看訂單</a>
+          <a class="btn" href="/">返回首頁</a>
+          <a class="btn" href={keepShoppingHref}>{notFound.secondaryCtaLabel}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    import { initCompletePage } from "../../scripts/checkout";
+    initCompletePage();
+  </script>
+</BaseLayout>
+
+<style>
+  .result-hero { background: var(--cta-dark); color: var(--color-on-dark); padding-block: clamp(36px, 5vw, 60px); }
+  .hero-inner { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+  .result-hero h1 { margin: 0; font-family: var(--font-serif); font-size: var(--page-title-size); font-weight: var(--title-weight); letter-spacing: 0.16em; line-height: 1.2; }
+  .crumb { display: flex; align-items: center; gap: var(--space-2); font-size: var(--meta-text-size); opacity: 0.82; }
+  .crumb a { color: inherit; }
+
+  .result-main { background: var(--color-soft); }
+  .state-msg { text-align: center; padding: 48px 16px; color: var(--text-secondary); }
+  .state-msg.err { color: var(--color-danger); }
+
+  .result-card { max-width: 860px; margin-inline: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding: clamp(24px, 4vw, 40px); display: grid; gap: var(--space-5); }
+
+  /* ── the three outcomes ─────────────────────────────────────────────────
+     Every variant is in the DOM; the state class on [data-o-state] reveals
+     exactly one. Nothing is shown until the script has classed it, so a failed
+     fetch cannot flash "付款成功" at anybody. */
+  .status { display: grid; justify-items: center; gap: var(--space-3); text-align: center; }
+  .status-icon svg { display: none; width: 52px; height: 52px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+  .status-icon .glyph { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .status-copy h2, .status-copy p { display: none; margin: 0; }
+  .status-copy h2 { font-family: var(--font-serif); font-size: var(--section-title-size); font-weight: var(--title-weight); letter-spacing: 0.06em; line-height: 1.3; color: var(--color-ink); }
+  .status-copy p { margin-top: 10px; color: var(--text-secondary); font-size: var(--description-text-size); line-height: 1.8; }
+
+  .status.is-paid .ic-paid, .status.is-pending .ic-pending, .status.is-failed .ic-failed { display: block; }
+  .status.is-paid .status-icon { color: var(--color-cta); }
+  .status.is-pending .status-icon { color: var(--text-muted); }
+  .status.is-failed .status-icon { color: var(--color-danger); }
+  .status.is-paid .v-paid, .status.is-pending .v-pending, .status.is-failed .v-failed { display: block; }
+  .cod-note { display: none; }
+  .status .cod-note:not([hidden]) { display: block; }
+
+  .meta-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-soft); }
+  .meta-strip > div { display: grid; gap: 6px; justify-items: center; padding: 18px 14px; border-left: 1px solid var(--color-border); text-align: center; }
+  .meta-strip > div:first-child { border-left: 0; }
+  .meta-strip span { color: var(--text-muted); font-size: var(--meta-text-size); }
+  .meta-strip strong { color: var(--color-ink); font-size: var(--description-text-size); }
+  .meta-strip .meta-status { color: var(--color-cta); }
+
+  .info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-5); }
+  .info-col h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--color-ink); font-family: var(--font-serif); font-size: var(--card-title-size); font-weight: var(--title-weight); }
+  .info-col h3 svg { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--color-cta); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .info-col dl { display: grid; gap: 10px; margin: 0; }
+  .info-col dl > div { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 10px; }
+  .info-col dt { color: var(--text-muted); font-size: var(--meta-text-size); line-height: 1.7; }
+  .info-col dd { margin: 0; color: var(--color-ink); font-size: var(--meta-text-size); line-height: 1.7; word-break: break-word; }
+
+  .payinfo { display: grid; gap: 12px; padding: 20px; border: 1px solid var(--color-cta); border-radius: var(--radius-sm); }
+  .payinfo h3 { margin: 0; color: var(--color-ink); font-family: var(--font-serif); font-size: var(--card-title-size); font-weight: var(--title-weight); }
+  .payinfo-hold { margin: 0; color: var(--text-secondary); font-size: var(--description-text-size); line-height: 1.7; }
+  .payinfo-rows { display: grid; gap: 10px; padding: 14px 0; border-block: 1px solid var(--color-border); }
+  .payinfo-expire { margin: 0; color: var(--text-secondary); font-size: var(--description-text-size); }
+  .payinfo-expire strong { color: var(--color-ink); }
+
+  .items { border: 1px solid var(--color-border); border-radius: var(--radius-sm); overflow: hidden; }
+  .items-head { display: grid; grid-template-columns: minmax(0, 1fr) 90px 60px 90px; gap: 10px; padding: 12px 16px; background: var(--color-soft); border-bottom: 1px solid var(--color-border); color: var(--text-muted); font-size: var(--meta-text-size); }
+  .items-head .col-price, .items-head .col-qty, .items-head .col-sub { text-align: right; }
+  .items-head .col-qty { text-align: center; }
+
+  .totals { display: grid; gap: 10px; justify-self: end; width: min(100%, 320px); }
+  .totals > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+  .totals span { color: var(--text-secondary); font-size: var(--description-text-size); }
+  .totals strong { color: var(--color-ink); font-size: var(--description-text-size); }
+  .totals strong.is-discount { color: var(--color-danger); }
+  .totals .grand { padding-top: 12px; border-top: 1px solid var(--color-border); }
+  .totals .grand strong { color: var(--color-cta); font-family: var(--font-serif); font-size: var(--card-title-size); font-weight: var(--title-weight); }
+
+  .actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 12px 18px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-ink); font-size: var(--button-text-size); letter-spacing: var(--button-letter-spacing); }
+  .btn:hover { border-color: var(--color-ink); }
+  .btn-primary { border-color: var(--color-cta); background: var(--color-cta); color: var(--color-cta-text); }
+  .btn-primary:hover { border-color: var(--color-cta); opacity: 0.9; }
+
+  /* Item rows are injected by checkout.ts, so they never carry Astro's scope
+     attribute — these rules must be :global(), nested under the scoped parent
+     so nothing leaks page-wide. */
+  .items-body :global(.oi-row) { display: grid; grid-template-columns: minmax(0, 1fr) 90px 60px 90px; gap: 10px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--color-border); }
+  .items-body :global(.oi-row:last-child) { border-bottom: 0; }
+  .items-body :global(.oi-name) { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: center; min-width: 0; }
+  .items-body :global(.oi-thumb) { width: 56px; height: 56px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-soft); overflow: hidden; }
+  .items-body :global(.oi-thumb img) { width: 56px; height: 56px; object-fit: cover; display: block; }
+  .items-body :global(.oi-title) { min-width: 0; color: var(--color-ink); font-size: var(--meta-text-size); line-height: 1.5; }
+  .items-body :global(.oi-variant) { display: block; color: var(--text-muted); }
+  .items-body :global(.oi-price), .items-body :global(.oi-sub) { text-align: right; color: var(--color-ink); font-size: var(--meta-text-size); white-space: nowrap; }
+  .items-body :global(.oi-qty) { text-align: center; color: var(--text-secondary); font-size: var(--meta-text-size); font-variant-numeric: tabular-nums; }
+  .items-body :global(.payinfo-row) { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+
+  .payinfo-rows :global(.payinfo-row) { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+  .payinfo-rows :global(.payinfo-row span) { color: var(--text-muted); font-size: var(--meta-text-size); }
+  .payinfo-rows :global(.payinfo-row strong) { color: var(--color-ink); font-family: var(--font-serif); font-size: var(--card-title-size); font-weight: var(--title-weight); letter-spacing: 0.04em; }
+
+  @media (max-width: 860px) {
+    .info-grid { grid-template-columns: 1fr; gap: var(--space-4); }
+    .totals { justify-self: stretch; width: auto; }
+  }
+  @media (max-width: 640px) {
+    .meta-strip { grid-template-columns: 1fr; }
+    .meta-strip > div { border-left: 0; border-top: 1px solid var(--color-border); }
+    .meta-strip > div:first-child { border-top: 0; }
+    .items-head { display: none; }
+    .items-body :global(.oi-row) { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+    .items-body :global(.oi-name) { grid-column: 1 / -1; }
+    .items-body :global(.oi-price) { text-align: left; }
+    .actions { grid-template-columns: 1fr; }
+  }
+</style>

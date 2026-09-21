@@ -1,0 +1,72 @@
+---
+/**
+ * The only page of the render fixture. NOT a route this storefront ships.
+ *
+ * `tests/page-primitives.test.mjs` builds this file with
+ * `tests/fixtures/primitives.config.mjs`, whose `srcDir` points here — so
+ * Astro's page discovery finds exactly this one page and nothing under `src/`.
+ * Nothing in a normal `npm run build` reaches it.
+ *
+ * The three primitives ship unwired: `spec-tpl-lock-split-and-page-primitives-v1`
+ * adds them without touching a single existing page, and each storefront wires
+ * the ones it wants. That leaves them with no build output to assert against,
+ * which is what this fixture supplies. A render test that only proved the file
+ * parses would prove nothing worth the line — so every prop that changes the
+ * markup is exercised here, including the optional ones left out.
+ */
+import Breadcrumb from "../../../../src/components/common/Breadcrumb.astro";
+import PageHero from "../../../../src/components/common/PageHero.astro";
+import TrustBand from "../../../../src/components/common/TrustBand.astro";
+import { tokensCss } from "../../../../brand/identity";
+import { groundRolesCss } from "../../../../src/lib/ground";
+---
+
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <title>page primitives fixture</title>
+    {/* The same two blocks BaseLayout inlines. The components read
+        `--ground-*` and `--overlay-*`, and a fixture without them would render
+        markup nobody could look at. */}
+    <style set:html={`${tokensCss()}\n\n${groundRolesCss}`}></style>
+  </head>
+  <body>
+    <main data-fixture="page-primitives">
+      <div data-case="hero-full">
+        <PageHero
+          eyebrow="ABOUT"
+          title="關於我們"
+          lead="一段副標，說明這一頁在講什麼。"
+          image="/assets/about/hero.svg"
+          breadcrumb={[
+            { label: "首頁", href: "/" },
+            { label: "關於我們", href: "/about" },
+          ]}
+        />
+      </div>
+
+      {/* Title and image only: every optional prop left out. */}
+      <div data-case="hero-minimal">
+        <PageHero title="常見問題" image="/assets/about/hero.svg" tone="light" />
+      </div>
+
+      <div data-case="breadcrumb-standalone">
+        <Breadcrumb
+          items={[
+            { label: "首頁", href: "/" },
+            { label: "全部商品", href: "/products" },
+            { label: "常見問題", href: "/faq" },
+          ]}
+        />
+      </div>
+
+      <div data-case="trust-light">
+        <TrustBand title="我們的承諾" />
+      </div>
+
+      <div data-case="trust-dark">
+        <TrustBand ground="dark" />
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,158 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import LegalDocument from "../components/content/LegalDocument.astro";
+import { identity } from "../../brand/identity";
+import { legal } from "../../brand/legal";
+import { getMerchant } from "../lib/commerce";
+import { deriveLegalContact } from "../lib/content-derivation.mjs";
+
+// 聯絡資訊 bullets derive from storefront_config.contact — same source as the
+// footer, so the legal page can never quote a stale company block.
+//
+// The clause text below is a TEMPLATE, not advice. Read every clause and edit
+// the ones that do not describe how you actually trade.
+//
+// EDIT THEM IN `brand/legal.ts`, under `legal.privacy.clauses`, not here. This
+// file is in template.lock.json and compared byte for byte, so an edit here
+// turns `audit:template` red and does not travel to any other storefront. What
+// follows is the DEFAULT, used by every shop that declares nothing.
+const merchant = await getMerchant();
+const legalContact = deriveLegalContact(merchant?.storefront_config);
+const clauses = legal.privacy.clauses;
+
+const introParagraphs = clauses?.introParagraphs ?? [
+  `${legal.tradingName} 重視您的個人資料與隱私權保護。為了讓您安心使用本網站所提供的商品瀏覽、會員註冊、線上購物、付款、配送及客服服務，請您詳閱以下隱私權政策。`,
+  "當您使用本網站服務時，即表示您已閱讀並同意本隱私權政策之內容。",
+];
+
+const defaultSections = [
+  {
+    heading: "一、適用範圍",
+    paragraphs: [
+      `本隱私權政策適用於您使用 ${legal.tradingName} 官方網站時，涉及個人資料蒐集、處理、利用與保護之相關作法。`,
+      "本政策不適用於本網站以外之第三方網站、外部連結、金流平台、物流平台或社群平台。當您使用第三方服務時，請另行參閱該第三方服務之隱私權政策。",
+    ],
+  },
+  {
+    heading: "二、我們蒐集的資料",
+    paragraphs: [
+      "當您註冊會員、下單購物、填寫表單、聯繫客服或使用本網站服務時，我們可能會蒐集以下資料：",
+    ],
+    bullets: [
+      "基本資料：姓名、電話、電子郵件、地址。",
+      "會員資料：LINE 官方帳號提供的使用者識別碼與顯示名稱、會員紀錄、登入紀錄。本網站採 LINE 登入，不自行設定或保存密碼。",
+      "訂單資料：購買商品、訂單金額、付款方式、配送方式、發票資訊。",
+      "客服資料：您與客服聯繫時提供的內容、問題紀錄與處理紀錄。",
+      "網站使用資料：IP 位址、瀏覽器類型、裝置資訊、瀏覽紀錄、Cookie 資訊。",
+    ],
+  },
+  {
+    heading: "三、資料使用目的",
+    paragraphs: ["我們蒐集您的個人資料，主要用於以下目的："],
+    bullets: [
+      "完成會員註冊與會員管理。",
+      "處理訂單、付款、出貨、配送與退換貨。",
+      "提供客服聯繫、售後服務與問題回覆。",
+      "寄送訂單通知、付款通知、物流通知或會員相關訊息。",
+      "提供優惠活動、行銷資訊、商品推薦或網站服務通知。",
+      "進行網站流量分析、服務改善、系統安全與防止詐欺交易。",
+      "配合法令、主管機關或司法機關之要求。",
+    ],
+  },
+  {
+    heading: "四、資料利用期間與範圍",
+    paragraphs: [
+      "您的個人資料將於提供服務所需期間、會員存續期間、法律規定保存期間，或本公司因執行業務所必須之保存期間內使用。",
+      "您的資料使用範圍以台灣地區及本網站服務所需範圍為主。除非經您同意、法律規定或完成交易服務所必要，本公司不會任意將您的個人資料提供給無關第三人。",
+    ],
+  },
+  {
+    heading: "五、第三方服務",
+    paragraphs: ["為完成網站服務，我們可能會將必要資料提供給合作之第三方服務單位，包括但不限於："],
+    bullets: [
+      "金流服務商，用於付款、刷卡、分期或交易驗證。",
+      "物流服務商，用於商品配送、到貨通知與退換貨處理。",
+      "電子發票或會計服務商，用於開立發票及帳務處理。",
+      "網站系統、主機、客服、簡訊、Email 或行銷工具服務商。",
+      "廣告與數據分析服務商，用於網站流量分析與廣告成效追蹤。",
+    ],
+    paragraphsAfter: [
+      "上述第三方僅能在提供服務所需範圍內使用您的資料，並應依相關法令保護您的個人資料。",
+    ],
+  },
+  {
+    heading: "六、Cookie 使用",
+    paragraphs: [
+      "本網站可能使用 Cookie 或類似技術，以記錄您的瀏覽偏好、購物車內容、登入狀態、網站流量及廣告成效。",
+      "您可透過瀏覽器設定拒絕或刪除 Cookie。但若停用 Cookie，可能導致部分網站功能無法正常使用，例如會員登入、購物車保存或結帳流程。",
+    ],
+  },
+  {
+    heading: "七、個人資料權利",
+    paragraphs: ["依相關法令規定，您可就您的個人資料向本公司提出以下需求："],
+    bullets: [
+      "查詢或請求閱覽。",
+      "請求製給複製本。",
+      "請求補充或更正。",
+      "請求停止蒐集、處理或利用。",
+      "請求刪除個人資料。",
+    ],
+    paragraphsAfter: [
+      "如需行使上述權利，請透過本政策下方聯絡方式與我們聯繫。本公司將於確認您的身分後，依相關法令與實際作業情形處理。",
+    ],
+  },
+  {
+    heading: "八、資料安全",
+    paragraphs: [
+      "本公司將採取合理且適當的安全措施，保護您的個人資料，避免資料遭未經授權之存取、洩漏、竄改、遺失或毀損。",
+      "但網路資料傳輸無法保證百分之百安全。本網站不保存您的密碼（登入由 LINE 驗證），請您妥善保管自己的 LINE 帳號與裝置，並避免在他人裝置上維持登入狀態。",
+    ],
+  },
+  {
+    heading: "九、未成年人保護",
+    paragraphs: [
+      "若您為未成年人，應於法定代理人或監護人同意後，始得使用本網站服務及提供個人資料。",
+      "當您使用本網站進行會員註冊、下單或付款時，即表示您的法定代理人或監護人已閱讀並同意本隱私權政策之內容。",
+    ],
+  },
+  {
+    heading: "十、政策修改",
+    paragraphs: [
+      "本公司保留隨時修改本隱私權政策之權利。修改後內容將公告於本網站，並自公告日起生效。",
+      "建議您定期查看本政策，以了解我們如何保護您的個人資料。",
+    ],
+  },
+];
+
+// Appended rather than declared — same reasoning as terms.astro: the values
+// derive from the merchant record so the pages cannot disagree, and only the
+// number in front of the heading moves with the clause count.
+const contactSection = {
+  heading: clauses?.contactHeading ?? "十一、聯絡資訊",
+  paragraphs: [
+    clauses?.contactLead ??
+      "若您對本隱私權政策、個人資料使用方式，或希望行使個人資料相關權利，請透過以下方式與我們聯繫：",
+  ],
+  bullets: [
+    `客服專線：${legalContact.phone}`,
+    `電子郵件：${identity.contact.email}`,
+    `公司名稱：${legalContact.legalEntity}`,
+    `統一編號：${legalContact.taxId}`,
+  ],
+};
+
+const sections = [...(clauses?.sections ?? defaultSections), contactSection];
+---
+
+<BaseLayout title="隱私權政策" description={legal.privacy.description}>
+  <LegalDocument
+    breadcrumbLabel="隱私權政策"
+    title="隱私權政策"
+    updatedAt={legal.privacy.effectiveDate}
+    introTitle={legal.privacy.introTitle}
+    introParagraphs={introParagraphs}
+    sections={sections}
+    contactNote="若您對隱私權政策內容有任何疑問，歡迎透過聯絡我們頁面與客服窗口聯繫。"
+    ctaLabel="聯絡我們"
+  />
+</BaseLayout>

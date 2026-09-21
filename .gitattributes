@@ -1,0 +1,9 @@
+# Normalise every text file to LF in the repository and in the working copy.
+# Without this the audits and the .astro parser see mixed endings on Windows
+# checkouts, and every cross-platform edit shows up as a whole-file diff.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.woff2 binary

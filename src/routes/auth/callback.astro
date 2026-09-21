@@ -1,0 +1,83 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { member } from "../../../brand/copy";
+
+// LINE redirects here (redirect_uri = merchant.domain + /auth/callback). The
+// client script verifies state, exchanges code → member token, claims the guest
+// cart, then returns to the stashed post-login path.
+---
+
+<BaseLayout title="登入中" description={member.loginMetaDescription}>
+  <section class="section callback-main">
+    <div class="container auth">
+      <section class="callback-card surface">
+        <h2 data-callback-title>登入處理中…</h2>
+        <p class="lead" data-callback-message>正在完成 LINE 登入，請稍候。</p>
+        <a class="retry" href="/login" data-callback-retry hidden>返回登入頁</a>
+      </section>
+    </div>
+  </section>
+
+  <script>
+    import { handleCallback } from "../../scripts/auth";
+
+    const titleEl = document.querySelector("[data-callback-title]");
+    const msgEl = document.querySelector("[data-callback-message]");
+    const retryEl = document.querySelector("[data-callback-retry]");
+
+    const fail = (msg: string) => {
+      if (titleEl) titleEl.textContent = "登入失敗";
+      if (msgEl) msgEl.textContent = msg;
+      if (retryEl) retryEl.removeAttribute("hidden");
+    };
+
+    handleCallback()
+      .then((r) => {
+        if (r.ok) {
+          if (titleEl) titleEl.textContent = "登入成功";
+          if (msgEl) msgEl.textContent = "正在為您導向…";
+          window.location.replace(r.redirect || "/");
+        } else if (r.reason === "state_mismatch") {
+          fail("登入驗證失敗（state 不符），請重新登入。");
+        } else {
+          fail("LINE 授權未完成，請重新登入。");
+        }
+      })
+      .catch(() => fail("登入過程發生錯誤，請重新登入。"));
+  </script>
+</BaseLayout>
+
+<style>
+  .callback-main { background: var(--color-surface); }
+  .auth { max-width: 480px; margin-inline: auto; }
+  .callback-card {
+    display: grid;
+    gap: 16px;
+    padding: 32px 28px;
+    text-align: center;
+  }
+  .callback-card h2 {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--section-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--title-letter-spacing);
+    line-height: 1.2;
+  }
+  .lead {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--description-text-size);
+    line-height: 1.8;
+  }
+  .retry {
+    justify-self: center;
+    color: var(--color-ink);
+    text-decoration: underline;
+    font-size: var(--description-text-size);
+  }
+  @media (max-width: 430px) {
+    .callback-card { padding: 24px 18px; }
+  }
+</style>

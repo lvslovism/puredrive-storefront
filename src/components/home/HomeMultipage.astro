@@ -1,0 +1,562 @@
+---
+/**
+ * The template's original home page: a fixed sequence of six blocks —
+ * hero, feature strip, featured products, highlights, image band, steps.
+ *
+ * One of two presets (see brand/copy.ts `home`). It suits a shop whose home
+ * page is a front door to other pages: every block ends in a link somewhere
+ * else, and nothing is bought here. A shop that sells straight off the home
+ * page wants HomeLanding.astro instead.
+ */
+import Button from "../common/Button.astro";
+import ProductGrid from "../product/ProductGrid.astro";
+import type { HomeMultipageCopy } from "../../../brand/copy";
+import { getProducts, toCard } from "../../lib/commerce";
+import { sizeAttrs } from "../../lib/image-size";
+import { assertHeroCopy, heroCopyGround, heroMobileCopyGround } from "../../lib/hero-copy";
+
+interface Props {
+  copy: HomeMultipageCopy;
+}
+
+const { copy } = Astro.props;
+const featuredProducts = (await getProducts("?sort=featured")).map(toCard);
+const { hero, features, featured, highlights, band, steps } = copy;
+
+// Fail-visible, because nothing type-checks this build. See src/lib/hero-copy.ts.
+assertHeroCopy(hero, "homeMultipage");
+
+// Resolved twice: the phone is a different crop and may need a different answer.
+// This preset only acts on "panel" — it has never had a scrim to switch off.
+const copyGround = heroCopyGround(hero);
+const mobileGround = heroMobileCopyGround(hero);
+---
+
+  {/* The multipage hero has never carried a scrim, and still does not — its
+      copy sits in the left third of a picture the shop chose for that. What it
+      DOES honour is the panel, for the shop whose picture cannot carry it, and
+      it honours it per breakpoint: the phone sees a different crop, so it gets
+      its own answer. Anything other than "panel" leaves the photograph alone. */}
+  <section
+    class:list={[
+      "home-hero",
+      copyGround === "panel" && "home-hero--ground-panel",
+      mobileGround === "panel" && "home-hero--mground-panel",
+    ]}
+    data-section="hero"
+  >
+    {/* LCP element. The mobile source is listed first — <picture> takes the
+        first source whose media matches, so the portrait crop must outrank the
+        desktop image. fetchpriority="high" and no loading="lazy": this is the
+        one image on the page that must start downloading immediately. */}
+    <picture>
+      <source media="(max-width: 720px)" srcset={hero.mobileImage} />
+      <img
+        src={hero.image}
+        alt={hero.imageAlt}
+        {...sizeAttrs(hero.image)}
+        fetchpriority="high"
+        decoding="async"
+      />
+    </picture>
+    <div class="container hero-copy">
+      {/* Empty renders nothing, the way identity.logoSubtext does: a comp with
+          no line above the headline is a choice, and an empty <p> is a gap the
+          reader has to account for. */}
+      {hero.eyebrow && <p class="eyebrow">{hero.eyebrow}</p>}
+      <h1>{hero.title}</h1>
+      <p class="hero-body">{hero.description}</p>
+      <Button href={hero.ctaHref}>{hero.ctaLabel}</Button>
+    </div>
+  </section>
+
+  {features.length > 0 && (
+    <section class="feature-strip" data-section="features">
+      <div class="container feature-list">
+        {features.map((feature) => (
+          <article>
+            {feature.icon && <img src={feature.icon} alt="" loading="lazy" decoding="async" {...sizeAttrs(feature.icon)} />}
+            <h2>{feature.title}</h2>
+            <p>{feature.text}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <section class="section products-section" data-section="featured_products">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">{featured.title}</h2>
+        <a href={featured.linkHref}>{featured.linkLabel}</a>
+      </div>
+      <ProductGrid products={featuredProducts} variant="compact" desktopColumns={5} tabletColumns={3} mobileColumns={1} />
+    </div>
+  </section>
+
+  {highlights.items.length > 0 && (
+    <section class="section highlights-section" data-section="highlights">
+      <div class="container highlights-grid">
+        <div class="highlights-copy">
+          <p class="eyebrow">{highlights.eyebrow}</p>
+          <h2 class="section-title">{highlights.title}</h2>
+          <p class="lead">{highlights.lead}</p>
+          <Button href={highlights.ctaHref}>{highlights.ctaLabel}</Button>
+        </div>
+        {highlights.items.map((item) => (
+          <article class="highlight-card">
+            <img src={item.image} alt={item.title} loading="lazy" decoding="async" {...sizeAttrs(item.image)} />
+            <h3>{item.title}</h3>
+            <p>{item.text}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <section class="band" data-section="band">
+    {/* Well below the fold, so it stays lazy and never competes with the hero
+        for bandwidth. */}
+    <img
+      src={band.image}
+      alt={band.imageAlt}
+      {...sizeAttrs(band.image)}
+      loading="lazy"
+      decoding="async"
+    />
+    <div class="band-copy">
+      <div class="band-copy-inner">
+        <p class="eyebrow">{band.eyebrow}</p>
+        <h2 class="section-title">{band.title}</h2>
+        <p class="lead">{band.lead}</p>
+        <Button href={band.ctaHref}>{band.ctaLabel}</Button>
+      </div>
+    </div>
+  </section>
+
+  {steps.items.length > 0 && (
+    <section class="section steps-section" data-section="steps">
+      <div class="container steps-grid">
+        <div class="steps-heading">
+          <p class="eyebrow">{steps.eyebrow}</p>
+          <h2 class="section-title">{steps.title}</h2>
+        </div>
+        <div class="steps-list">
+          {steps.items.map((item) => (
+            <article>
+              <p class="step-label">{item.step}</p>
+              {item.icon && <img src={item.icon} alt="" loading="lazy" decoding="async" {...sizeAttrs(item.icon)} />}
+              <h3>{item.title}</h3>
+              <span>{item.text}</span>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+<style>
+  .home-hero {
+    position: relative;
+    min-height: min(720px, 100vh);
+    display: grid;
+    align-items: center;
+    overflow: hidden;
+    background: var(--color-soft);
+  }
+
+  .home-hero picture,
+  .home-hero img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .home-hero img {
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .hero-copy {
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-copy > * {
+    max-width: 460px;
+  }
+
+  /* --- Hero copy panel (copyGround / mobileCopyGround: "panel") -----------
+     The same capability HomeLanding carries, sized to this preset's narrower
+     copy measure. A pseudo-element rather than a background on .hero-copy,
+     because .hero-copy also carries .container: give THAT a width and it
+     re-centres itself, taking the copy off the left edge the rest of the page
+     starts from and centring the panel in the hero. Full reasoning and the
+     measurement that decides whether to switch it on: docs/PITFALLS.md #7.
+
+     The rules are written once and read a switch. These two media blocks are
+     the only place the breakpoint appears — above 760px the desktop answer
+     decides, at 760px and below the phone's does — and neither has to undo the
+     other, because each only sets its own. The panel's inks live in the same
+     rule as its switch: a panel without reversed-out copy is a dark slab over
+     dark text, so they must not be separately settable.
+
+     THE EYEBROW READS --color-on-dark-muted, and it used to read
+     --color-footer-text — see the longer note in HomeLanding.astro. In short:
+     the footer ink was standing in for a muted reversed ink, which made it an
+     ink on two grounds at once and made a pale footer unsatisfiable. */
+  @media (min-width: 761px) {
+    .home-hero--ground-panel {
+      --hero-panel: block;
+      --hero-ink: var(--color-on-dark);
+      --hero-eyebrow-ink: var(--color-on-dark-muted);
+      --hero-button-edge: var(--color-on-dark);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .home-hero--mground-panel {
+      --hero-panel: block;
+      --hero-ink: var(--color-on-dark);
+      --hero-eyebrow-ink: var(--color-on-dark-muted);
+      --hero-button-edge: var(--color-on-dark);
+    }
+  }
+
+  .hero-copy {
+    --panel-pad: clamp(24px, 3vw, 44px);
+  }
+
+  .hero-copy::before {
+    display: var(--hero-panel, none);
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset-block: calc(-1 * var(--panel-pad));
+    left: calc(-1 * var(--panel-pad));
+    width: calc(460px + var(--panel-pad) * 2);
+    max-width: calc(100% + var(--panel-pad) * 2);
+    background: var(--cta-dark);
+  }
+
+  /* The eyebrow is `.eyebrow` from global.css, which paints --text-muted — a
+     grey chosen against the PAGE grounds, not against this one. On the panel it
+     takes the dark-ground secondary ink instead; off it, nothing changes. */
+  .hero-copy .eyebrow {
+    color: var(--hero-eyebrow-ink, var(--text-muted));
+  }
+
+  /* A light edge on the button: a CTA fill close to the panel's own value
+     leaves a boundary nobody can see, and WCAG asks 3:1 for the boundary of a
+     control. This does not touch the CTA's colour, and off the panel the
+     fallback restates Button.astro's own edge. */
+  .hero-copy :global(.button) {
+    border-color: var(--hero-button-edge, var(--color-cta));
+  }
+
+  .hero-copy h1 {
+    margin: 18px 0 20px;
+    color: var(--hero-ink, var(--text-primary));
+    /* The hero title reads from its own family, so setting it apart from the
+       rest of the headings is a brand/ edit rather than a restyle. Falls back
+       to --font-serif for a brand that never declares one. */
+    font-family: var(--font-hero, var(--font-serif));
+    font-size: var(--hero-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--hero-title-letter-spacing);
+    line-height: var(--title-line-height);
+  }
+
+  .hero-copy .hero-body {
+    margin: 0 0 30px;
+    color: var(--hero-ink, var(--text-secondary));
+    font-size: var(--body-text-size);
+    line-height: 1.9;
+    /* `\n` in brand/copy.ts is an authored line break, not accidental
+       whitespace — the copy is written to break at a specific word. */
+    white-space: pre-line;
+  }
+
+  .feature-strip {
+    padding-block: 62px 58px;
+    background: var(--color-soft);
+  }
+
+  .feature-list {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+  }
+
+  .feature-list article {
+    min-width: 0;
+    padding: 2px 22px 0;
+    border-right: 1px solid var(--color-border);
+    text-align: center;
+  }
+
+  .feature-list article:last-child {
+    border-right: 0;
+  }
+
+  .feature-list img {
+    width: 50px;
+    height: 50px;
+    margin: 0 auto 20px;
+    object-fit: contain;
+  }
+
+  .feature-list h2,
+  .steps-list h3,
+  .highlight-card h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--card-title-letter-spacing);
+    line-height: var(--card-title-line-height);
+  }
+
+  .feature-list p,
+  .highlight-card p,
+  .steps-list span {
+    color: var(--text-secondary);
+    font-size: var(--description-text-size);
+    line-height: var(--description-line-height);
+  }
+
+  .feature-list p {
+    margin: 10px 0 0;
+    white-space: pre-line;
+  }
+
+  .products-section {
+    background: var(--color-soft);
+  }
+
+  .products-section :global(.product-grid) {
+    align-items: start;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-3);
+  }
+
+  .section-head a {
+    color: var(--text-secondary);
+    font-size: var(--body-text-size);
+    line-height: 1.5;
+  }
+
+  .highlights-grid {
+    display: grid;
+    grid-template-columns: minmax(340px, 1.58fr) repeat(4, minmax(0, 0.88fr));
+    align-items: start;
+    gap: 28px;
+  }
+
+  .highlights-copy {
+    align-self: center;
+    max-width: 430px;
+    padding-right: var(--space-6);
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+  }
+
+  .highlight-card img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    margin-bottom: var(--space-3);
+  }
+
+  .band {
+    position: relative;
+    min-height: 420px;
+    overflow: hidden;
+    background: var(--color-mist);
+  }
+
+  .band > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .band-copy {
+    position: relative;
+    z-index: 1;
+    width: min(100% - 48px, var(--container));
+    margin-inline: auto;
+    padding: 92px 0 86px;
+  }
+
+  .band-copy-inner {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+    width: min(100%, 430px);
+    margin-left: auto;
+  }
+
+  .steps-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    align-items: start;
+    gap: 46px;
+  }
+
+  .steps-list {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 18px;
+    text-align: center;
+  }
+
+  .steps-list img {
+    width: 40px;
+    height: 40px;
+    margin: 10px auto 14px;
+    object-fit: contain;
+  }
+
+  .steps-list .step-label {
+    margin: 0;
+    color: var(--text-muted);
+    font-family: var(--font-serif);
+    font-size: var(--description-text-size);
+    letter-spacing: var(--label-letter-spacing);
+    line-height: 1.4;
+  }
+
+  .steps-list article {
+    padding-top: 8px;
+  }
+
+  @media (max-width: 1024px) {
+    .feature-list {
+      grid-template-columns: repeat(3, 1fr);
+      row-gap: var(--space-4);
+    }
+
+    .feature-list article:nth-child(3) {
+      border-right: 0;
+    }
+
+    .highlights-grid,
+    .steps-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .highlights-copy {
+      max-width: none;
+      padding-right: 0;
+    }
+
+    .band-copy-inner {
+      margin-left: 0;
+    }
+  }
+
+  @media (max-width: 760px) {
+    /* The hero shortens, and that is the whole of the change: the copy stays
+       vertically CENTRED, same as the desktop rule it inherits.
+
+       It used to be `align-items: start`, which put a ~300px copy block at the
+       top of a 620px hero and left the bottom half as bare photograph. On a
+       phone that reads as the section having been cut off rather than composed
+       — there is no second column for the eye to go to, so the empty half is
+       simply empty.
+
+       The image keeps `center top`: a portrait crop is framed from its top
+       edge, and moving the COPY is not a reason to re-anchor the PICTURE.
+
+       This is also what makes the panel work here. `hero.copyGround: 'panel'`
+       draws on .hero-copy::before, which is positioned against .hero-copy
+       itself — centre the grid item and the panel moves with it, because it is
+       part of it. Centring the copy some other way (a margin, a translate on
+       the children) would have left the panel behind. */
+    .home-hero {
+      min-height: 620px;
+    }
+
+    .home-hero img {
+      object-position: center top;
+    }
+
+    .feature-list,
+    .steps-list {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .feature-list article {
+      border-right: 0;
+    }
+
+    .highlights-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+    }
+
+    .highlights-copy,
+    .section-head {
+      grid-column: 1 / -1;
+    }
+
+    .section-head {
+      align-items: start;
+      flex-direction: column;
+    }
+
+    .band {
+      min-height: auto;
+    }
+
+    .band > img {
+      position: relative;
+      inset: auto;
+      height: 160px;
+    }
+
+    .band-copy {
+      width: calc(100% - (var(--mobile-padding) * 2));
+      padding: 44px 0 42px;
+    }
+
+    .band-copy-inner {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .feature-list,
+    .highlights-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .steps-list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .feature-strip,
+    .products-section {
+      padding-block: 48px;
+    }
+
+    .steps-grid {
+      gap: 28px;
+    }
+  }
+</style>

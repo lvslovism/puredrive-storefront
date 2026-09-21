@@ -1,0 +1,8 @@
+<!-- template-placeholder: replace this file with real artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 540" width="600" height="540" role="img" aria-label="CONTACT CARD">
+  <rect width="600" height="540" fill="#f0f0f0"/>
+  <rect x="0.5" y="0.5" width="599" height="539" fill="none" stroke="#dddddd"/>
+  <line x1="0" y1="0" x2="600" y2="540" stroke="#e4e4e4"/>
+  <line x1="600" y1="0" x2="0" y2="540" stroke="#e4e4e4"/>
+  <text x="300" y="270" fill="#767676" font-family="system-ui, sans-serif" font-size="41" text-anchor="middle" dominant-baseline="middle">CONTACT CARD</text>
+</svg>

@@ -1,0 +1,15 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import BlogOverview from "../../components/content/BlogOverview.astro";
+import { blog } from "../../../brand/copy";
+import { getAllArticles } from "../../lib/commerce";
+import { buildBlogItemList } from "../../lib/seo";
+
+const articles = await getAllArticles();
+const PAGE_SIZE = 9;
+const itemListJsonLd = buildBlogItemList(articles, 1, PAGE_SIZE);
+---
+
+<BaseLayout title={blog.metaTitle} description={blog.metaDescription} jsonLd={itemListJsonLd}>
+  <BlogOverview articles={articles} currentPage={1} pageSize={PAGE_SIZE} />
+</BaseLayout>

@@ -1,0 +1,281 @@
+---
+interface LegalSection {
+  heading: string;
+  paragraphs: string[];
+  bullets?: string[];
+  paragraphsAfter?: string[];
+}
+
+interface Props {
+  breadcrumbLabel: string;
+  title: string;
+  updatedAt: string;
+  introTitle: string;
+  introParagraphs: string[];
+  sections: LegalSection[];
+  contactNote: string;
+  ctaLabel: string;
+  ctaHref?: string;
+}
+
+const {
+  breadcrumbLabel,
+  title,
+  updatedAt,
+  introTitle,
+  introParagraphs,
+  sections,
+  contactNote,
+  ctaLabel,
+  ctaHref = "/contact",
+} = Astro.props;
+
+const navItems = sections.map((section, index) => ({
+  id: `clause-${index + 1}`,
+  label: section.heading,
+}));
+---
+
+<section class="legal-page section" data-section="legal_document">
+  <article class="container legal-shell">
+    <p class="legal-breadcrumb">首頁 / {breadcrumbLabel}</p>
+    <header class="legal-header">
+      <h1 class="page-title">{title}</h1>
+      <p class="legal-updated">最後更新：{updatedAt}</p>
+    </header>
+
+    <div class="legal-layout">
+      {/* Clause index (comps 07 / 08). It is a plain in-page anchor list, so it
+          works without JS; `position: sticky` keeps it beside a long document
+          on desktop and it collapses above the text on narrow screens. */}
+      {navItems.length > 0 && (
+        <nav class="legal-nav" aria-label={`${title} 章節`}>
+          <ol>
+            {navItems.map((item) => (
+              <li><a href={`#${item.id}`}>{item.label}</a></li>
+            ))}
+          </ol>
+        </nav>
+      )}
+
+    <div class="legal-copy">
+      <section class="legal-block">
+        <h2>{introTitle}</h2>
+        {introParagraphs.map((paragraph) => (
+          <p>{paragraph}</p>
+        ))}
+      </section>
+
+      {sections.map((section, index) => (
+        <section class="legal-block" id={`clause-${index + 1}`} data-section={`legal_block_${index + 1}`}>
+          <h3>{section.heading}</h3>
+          {section.paragraphs.map((paragraph) => (
+            <p>{paragraph}</p>
+          ))}
+          {section.bullets && (
+            <ul>
+              {section.bullets.map((bullet) => (
+                <li>{bullet}</li>
+              ))}
+            </ul>
+          )}
+          {section.paragraphsAfter && section.paragraphsAfter.map((paragraph) => (
+            <p>{paragraph}</p>
+          ))}
+        </section>
+      ))}
+
+      <footer class="legal-footer">
+        <p>{contactNote}</p>
+        <a class="legal-cta" href={ctaHref}>{ctaLabel}</a>
+      </footer>
+    </div>
+    </div>
+  </article>
+</section>
+
+<style>
+  .legal-page {
+    background: var(--color-soft);
+  }
+
+  .legal-shell {
+    max-width: 920px;
+    margin-inline: auto;
+    text-align: left;
+  }
+
+  .legal-breadcrumb,
+  .legal-updated {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--meta-text-size);
+    font-weight: var(--body-weight);
+    letter-spacing: var(--meta-letter-spacing);
+    line-height: 1.7;
+  }
+
+  .legal-header {
+    margin-bottom: 40px;
+  }
+
+  .legal-header .page-title {
+    margin: 14px 0 10px;
+    font-size: var(--page-title-size);
+    line-height: 40px;
+  }
+
+  .legal-copy {
+    max-width: 760px;
+  }
+
+  .legal-copy,
+  .legal-header,
+  .legal-footer {
+    text-align: left;
+  }
+
+  .legal-block + .legal-block {
+    margin-top: 40px;
+  }
+
+  .legal-block h2,
+  .legal-block h3 {
+    margin: 0 0 18px;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--card-title-letter-spacing);
+    line-height: var(--card-title-line-height);
+  }
+
+  .legal-block p,
+  .legal-block li,
+  .legal-footer p {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--description-text-size);
+    font-weight: var(--body-weight);
+    letter-spacing: var(--description-letter-spacing);
+    line-height: 2;
+  }
+
+  .legal-block p + p,
+  .legal-block ul,
+  .legal-block ul + p,
+  .legal-footer {
+    margin-top: 14px;
+  }
+
+  .legal-block ul {
+    padding-left: 20px;
+  }
+
+  .legal-footer {
+    margin-top: 52px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .legal-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    margin-top: 16px;
+    padding: 0 24px;
+    border: 1px solid var(--color-ink);
+    background: var(--color-cta);
+    color: var(--color-cta-text);
+    font-size: var(--button-text-size);
+    font-weight: var(--body-weight);
+    letter-spacing: var(--button-letter-spacing);
+    line-height: 20px;
+  }
+
+  @media (max-width: 640px) {
+    .legal-header {
+      margin-bottom: 28px;
+    }
+
+    .legal-header .page-title {
+      margin-top: 10px;
+      font-size: clamp(28px, 8vw, 32px);
+      line-height: 1.22;
+    }
+
+    .legal-block + .legal-block {
+      margin-top: 30px;
+    }
+
+    .legal-block h2,
+    .legal-block h3 {
+      margin-bottom: 14px;
+      font-size: 17px;
+    }
+
+    .legal-block p,
+    .legal-block li,
+    .legal-footer p {
+      font-size: 13px;
+      line-height: 1.9;
+    }
+
+    .legal-footer {
+      margin-top: 40px;
+    }
+  }
+
+  /* --- Clause index (comps 07 / 08) ---------------------------------------- */
+
+  .legal-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(28px, 4vw, 64px);
+  }
+
+  .legal-nav {
+    position: sticky;
+    top: 104px;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .legal-nav ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+  }
+
+  .legal-nav li + li {
+    border-top: 1px solid var(--divider);
+  }
+
+  .legal-nav a {
+    display: block;
+    padding: 11px 0;
+    color: var(--text-secondary);
+    font-size: var(--description-text-size);
+    line-height: 1.5;
+  }
+
+  .legal-nav a:hover,
+  .legal-nav a:focus-visible {
+    color: var(--color-ink);
+  }
+
+  @media (max-width: 900px) {
+    .legal-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .legal-nav {
+      position: static;
+    }
+  }
+</style>

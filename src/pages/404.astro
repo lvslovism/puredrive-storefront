@@ -1,0 +1,130 @@
+---
+/**
+ * 404.
+ *
+ * A dead end is the one page where the shop should do the navigating, so the
+ * page carries three ways onward: two buttons, a row of real products, and the
+ * quick links. Every one of those links runs through `visibleLinks` — a 404 that
+ * points at a route this build never produced is a 404 that leads to a 404.
+ *
+ * The products are the live catalogue, fetched at build time like every other
+ * product surface. An empty catalogue collapses the row rather than rendering a
+ * heading over nothing.
+ */
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ProductCard from "../components/product/ProductCard.astro";
+import { notFound } from "../../brand/copy";
+import { visibleLinks, safeHref } from "../lib/features";
+import { getProducts, toCard } from "../lib/commerce";
+
+const quickLinks = visibleLinks(notFound.quickLinks);
+const recommended = (await getProducts()).slice(0, 5).map(toCard);
+---
+
+<BaseLayout title="404" description={notFound.metaDescription}>
+  <section class="nf-hero" data-section="not_found_hero">
+    <img class="nf-hero-bg" src={notFound.heroImage} alt={notFound.heroImageAlt} width="1600" height="900" fetchpriority="high" decoding="async" />
+    <div class="container nf-hero-copy">
+      <p class="nf-code">{notFound.eyebrow}</p>
+      <h1 class="nf-title">{notFound.title}</h1>
+      <p class="nf-lead">{notFound.lead}</p>
+      <div class="nf-actions">
+        <a class="btn btn-primary" href="/">{notFound.ctaLabel}</a>
+        <a class="btn btn-ghost" href={safeHref(notFound.secondaryCtaHref)}>{notFound.secondaryCtaLabel}</a>
+      </div>
+    </div>
+  </section>
+
+  {recommended.length > 0 && (
+    <section class="section nf-recommend" data-section="not_found_recommend">
+      <div class="container">
+        <h2 class="rule-heading"><span>{notFound.recommendTitle}</span></h2>
+        <div class="nf-grid">
+          {recommended.map((product) => <ProductCard product={product} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  {quickLinks.length > 0 && (
+    <section class="section nf-quick" data-section="quick_links">
+      <div class="container">
+        <h2 class="rule-heading"><span>{notFound.quickLinksTitle}</span></h2>
+        <ul class="nf-links">
+          {quickLinks.map((link) => (
+            <li>
+              <a href={link.href}>
+                {link.icon ? (
+                  /* Masked, not <img>. The glyph has to take --color-cta like
+                     every other mark on the page, and an external <img> cannot
+                     resolve currentColor — its colour would be whatever the file
+                     baked in, which survives a rebrand the palette does not. The
+                     asset supplies the shape; the token supplies the colour. */
+                  <span class="link-ic" style={`--glyph: url('${link.icon}')`} aria-hidden="true"></span>
+                ) : (
+                  /* No glyph declared — a neutral one keeps the row even rather
+                     than leaving one cell short. */
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="3.6" width="16.8" height="16.8" rx="2"></rect><path d="m10 8.6 4 3.4-4 3.4"></path></svg>
+                )}
+                <span>{link.label}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+</BaseLayout>
+
+<style>
+  /* ── hero ──────────────────────────────────────────────────────────────
+     Dark photograph, copy on the left. The image is a real <img> under the
+     copy rather than a background so it can carry alt text and a fetch
+     priority; the scrim is what keeps the type legible over it. */
+  .nf-hero { position: relative; isolation: isolate; display: grid; align-items: center; min-height: clamp(360px, 52vw, 540px); background: var(--cta-dark); overflow: hidden; }
+  .nf-hero-bg { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
+  /* Legibility scrim. Built from a token plus `transparent`, so no colour
+     literal enters src/ — the same rule the home hero follows. The copy lives
+     in the solid part; the photograph keeps the right-hand side it was chosen
+     for. */
+  .nf-hero::after { position: absolute; inset: 0; z-index: -1; content: ""; background: linear-gradient(90deg, var(--cta-dark) 0%, var(--cta-dark) 30%, transparent 76%); }
+
+  .nf-hero-copy { display: grid; justify-items: start; gap: var(--space-3); max-width: var(--container); }
+  .nf-code { margin: 0; color: var(--color-cta); font-family: var(--font-serif); font-size: clamp(64px, 11vw, 128px); font-weight: var(--title-weight); line-height: 1; letter-spacing: 0.04em; }
+  .nf-title { margin: 0; color: var(--color-on-dark); font-family: var(--font-serif); font-size: var(--page-title-size); font-weight: var(--title-weight); letter-spacing: 0.22em; line-height: 1.3; }
+  .nf-lead { margin: 0; max-width: 34ch; color: var(--color-on-dark); font-size: var(--description-text-size); line-height: 2; white-space: pre-line; opacity: 0.9; }
+
+  .nf-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: var(--space-2); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 12px 32px; border: 1px solid transparent; border-radius: var(--radius-sm); font-size: var(--button-text-size); letter-spacing: var(--button-letter-spacing); }
+  .btn-primary { background: var(--color-cta); color: var(--color-cta-text); }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-ghost { border-color: var(--color-on-dark); color: var(--color-on-dark); }
+  .btn-ghost:hover { background: var(--color-on-dark); color: var(--color-ink); }
+
+  /* ── section headings ──────────────────────────────────────────────────
+     Centred label with a rule running out to each side. */
+  .rule-heading { display: flex; align-items: center; justify-content: center; gap: var(--space-4); margin: 0 0 var(--space-5); color: var(--color-ink); font-family: var(--font-serif); font-size: var(--section-title-size); font-weight: var(--title-weight); letter-spacing: 0.18em; line-height: 1.3; text-align: center; }
+  .rule-heading::before, .rule-heading::after { flex: 1; max-width: 88px; height: 1px; background: var(--color-border); content: ""; }
+
+  .nf-recommend { background: var(--color-soft); }
+  .nf-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; }
+
+  .nf-quick { background: var(--color-surface); }
+  .nf-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; }
+  .nf-links a { display: grid; justify-items: center; gap: 12px; padding: 18px 10px; border-radius: var(--radius-sm); color: var(--text-secondary); font-size: var(--description-text-size); letter-spacing: 0.06em; }
+  .nf-links a:hover { background: var(--color-soft); color: var(--color-ink); }
+  /* Declared glyph and neutral fallback are the same size and the same colour;
+     only the shape differs. */
+  .nf-links .link-ic { display: block; width: 30px; height: 30px; background: var(--color-cta); -webkit-mask: var(--glyph) center / contain no-repeat; mask: var(--glyph) center / contain no-repeat; }
+  .nf-links svg { width: 30px; height: 30px; fill: none; stroke: var(--color-cta); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+
+  @media (max-width: 1024px) {
+    .nf-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    /* Portrait: the copy sits under the picture, so the wash runs downwards. */
+    .nf-hero::after { background: linear-gradient(180deg, transparent 0%, var(--cta-dark) 58%); }
+    .nf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rule-heading::before, .rule-heading::after { max-width: 32px; }
+  }
+</style>

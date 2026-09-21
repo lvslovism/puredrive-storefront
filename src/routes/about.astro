@@ -1,0 +1,284 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Button from "../components/common/Button.astro";
+import { about } from "../../brand/copy";
+import { sizeAttrs } from "../lib/image-size";
+import { isVisibleHref } from "../lib/features";
+
+const { hero, story, values, cta } = about;
+
+// The closing CTA is the one link list on the site that is not an array, so it
+// missed the `visibleLinks` pass every other surface runs. A flagged-off route
+// is never built, and linking to one ships a dead click — so the secondary
+// button is dropped rather than rendered when its route does not exist.
+const secondaryCta = isVisibleHref(cta.secondary.href) ? cta.secondary : null;
+---
+
+<BaseLayout title={about.metaTitle} description={hero.description}>
+  <section class="about-hero page-hero page-hero--split" data-section="about_hero">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <div class="hero-copy-inner">
+          <p class="eyebrow">{hero.eyebrow}</p>
+          <h1 class="page-title">{hero.title}</h1>
+          <p class="lead">{hero.description}</p>
+          <Button href={hero.ctaHref}>{hero.ctaLabel}</Button>
+        </div>
+      </div>
+      <div class="hero-media">
+        {/* LCP element — no lazy, high priority, exactly like the home hero. */}
+        <img
+          src={hero.image}
+          alt={hero.imageAlt}
+          {...sizeAttrs(hero.image)}
+          fetchpriority="high"
+          decoding="async"
+        />
+      </div>
+    </div>
+  </section>
+
+  <section class="section story-section" data-section="story">
+    <div class="container story-grid">
+      <img
+        src={story.image}
+        alt={story.imageAlt}
+        {...sizeAttrs(story.image)}
+        loading="lazy"
+        decoding="async"
+      />
+      <div>
+        <p class="eyebrow">{story.eyebrow}</p>
+        <h2 class="section-title">{story.title}</h2>
+        {story.paragraphs.map((paragraph) => <p class="lead story-copy">{paragraph}</p>)}
+      </div>
+    </div>
+  </section>
+
+  {values.items.length > 0 && (
+    <section class="section values-section" data-section="values">
+      <div class="container">
+        <div class="center-copy">
+          <h2 class="section-title">{values.title}</h2>
+          <p class="lead">{values.lead}</p>
+        </div>
+        <div class="value-grid">
+          {values.items.map((item) => (
+            <article>
+              <img
+                class="value-photo"
+                src={item.image}
+                alt={item.title}
+                {...sizeAttrs(item.image)}
+                loading="lazy"
+                decoding="async"
+              />
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="about-cta" data-section="final_cta">
+    <img
+      src={cta.image}
+      alt=""
+      {...sizeAttrs(cta.image)}
+      loading="lazy"
+      decoding="async"
+    />
+    <div class="container">
+      <h2>{cta.title}</h2>
+      <p>{cta.text}</p>
+      <Button href={cta.primary.href}>{cta.primary.label}</Button>
+      {secondaryCta && (
+        <Button href={secondaryCta.href} variant="secondary">{secondaryCta.label}</Button>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .about-hero {
+    background: var(--color-soft);
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 44%) minmax(0, 56%);
+    align-items: stretch;
+    width: 100%;
+    min-height: var(--page-hero-min-height);
+  }
+
+  .about-hero .hero-copy {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    padding: clamp(36px, 5vw, 56px) var(--space-5);
+  }
+
+  .hero-copy-inner {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: start;
+    max-width: 420px;
+    margin-left: auto;
+  }
+
+  .hero-copy-inner .page-title,
+  .hero-copy-inner .lead {
+    margin: 0;
+  }
+
+  .hero-media {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .hero-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .story-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: var(--space-7);
+  }
+
+  .story-grid img {
+    width: 100%;
+    aspect-ratio: 1.15;
+    object-fit: cover;
+  }
+
+  .story-copy + .story-copy {
+    margin-top: var(--space-3);
+  }
+
+  .center-copy {
+    max-width: 760px;
+    margin: 0 auto clamp(48px, 5vw, 72px);
+    text-align: center;
+  }
+
+  .center-copy .section-title {
+    margin-bottom: var(--space-3);
+  }
+
+  .value-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: clamp(20px, 2vw, 28px);
+    text-align: center;
+  }
+
+  .value-photo {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    margin-bottom: var(--space-3);
+  }
+
+  .value-grid h3 {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    line-height: var(--card-title-line-height);
+  }
+
+  .value-grid p {
+    color: var(--text-secondary);
+    font-size: var(--description-text-size);
+    line-height: var(--description-line-height);
+  }
+
+  .about-cta {
+    position: relative;
+    min-height: 340px;
+    display: grid;
+    align-items: center;
+    overflow: hidden;
+    text-align: center;
+  }
+
+  .about-cta > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .about-cta .container {
+    position: relative;
+    z-index: 1;
+  }
+
+  .about-cta h2 {
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--section-title-size);
+    font-weight: var(--title-weight);
+    line-height: var(--title-line-height);
+  }
+
+  .about-cta :global(.button) {
+    margin: var(--space-2);
+  }
+
+  @media (max-width: 980px) {
+    .value-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .hero-grid,
+    .story-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .about-hero .hero-copy {
+      padding-inline: var(--mobile-padding);
+    }
+
+    .hero-copy-inner {
+      max-width: none;
+      margin-left: 0;
+    }
+
+    .hero-media img {
+      aspect-ratio: 4 / 3;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .value-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+
+    .value-grid article:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+      max-width: 50%;
+      margin-inline: auto;
+    }
+
+    .about-cta :global(.button) {
+      width: 100%;
+      margin: var(--space-2) 0;
+    }
+  }
+</style>

@@ -1,0 +1,203 @@
+---
+interface Product {
+  name: string;
+  image: string;
+  gallery?: string[];
+}
+
+interface Props {
+  product: Product;
+}
+
+import { identity } from "../../../brand/identity";
+
+const { product } = Astro.props;
+const gallery = product.gallery?.length ? product.gallery : [product.image];
+const leadImage = gallery[0];
+// A single image keeps the current look (no thumb row). With >1 image the whole
+// set becomes a switchable thumbnail gallery, image[0] included as a thumb.
+const hasGallery = gallery.length > 1;
+
+/**
+ * Where the thumbnails sit. An OPTION, not a migration: `below` is the row
+ * under the lead image that every storefront ships today, and a shop that says
+ * nothing keeps it.
+ *
+ * THE CLASS IS EMITTED CONDITIONALLY, and that is the whole reason every
+ * existing shop renders byte-for-byte what it rendered before. `class:list`
+ * drops a falsy entry, so a `below` shop emits `class="product-gallery"` —
+ * exactly what it emitted before this field existed. Writing it as
+ * `class={`product-gallery product-gallery--${layout}`}` would stamp
+ * `product-gallery--below` into every storefront to add a layout none of them
+ * asked for.
+ *
+ * Narrow screens are the SAME in both settings — the column folds back to a row
+ * under the lead — so `side` is a wide-screen choice and nothing else.
+ */
+const layout = identity.productGallery ?? "below";
+---
+
+<div
+  class:list={["product-gallery", layout === "side" && "product-gallery--side"]}
+  data-section="product_gallery"
+  data-gallery
+>
+  <figure
+    class="lead-frame"
+  >
+    <img src={leadImage} alt={product.name} loading="eager" data-gallery-lead />
+  </figure>
+
+  {hasGallery && (
+    <div class="thumb-grid" role="list" aria-label="商品圖片縮圖">
+      {gallery.map((image, index) => (
+        <button
+          type="button"
+          class:list={["thumb-frame", index === 0 && "is-active"]}
+          data-gallery-thumb
+          data-full={image}
+          aria-label={`檢視第 ${index + 1} 張圖片`}
+          aria-pressed={index === 0 ? "true" : "false"}
+        >
+          <img src={image} alt={`${product.name} 第 ${index + 1} 張`} loading="lazy" />
+        </button>
+      ))}
+    </div>
+  )}
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-gallery]").forEach((root) => {
+    const lead = root.querySelector<HTMLImageElement>("[data-gallery-lead]");
+    const thumbs = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-gallery-thumb]"));
+    if (!lead || thumbs.length < 2) return;
+    thumbs.forEach((thumb) => {
+      thumb.addEventListener("click", () => {
+        const full = thumb.getAttribute("data-full");
+        if (!full) return;
+        lead.src = full;
+        thumbs.forEach((t) => {
+          t.classList.remove("is-active");
+          t.setAttribute("aria-pressed", "false");
+        });
+        thumb.classList.add("is-active");
+        thumb.setAttribute("aria-pressed", "true");
+      });
+    });
+  });
+</script>
+
+<style>
+  .product-gallery {
+    display: grid;
+    gap: 16px;
+  }
+
+  .lead-frame,
+  .thumb-frame {
+    margin: 0;
+    overflow: hidden;
+    background: var(--thumb-bg);
+  }
+
+  .lead-frame img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+
+  .thumb-grid {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .thumb-frame {
+    flex: 0 0 clamp(68px, 7.2vw, 86px);
+    padding: 0;
+    border: 1px solid var(--border);
+    background: var(--thumb-bg);
+    cursor: pointer;
+  }
+
+  /* Which image the lead frame is currently showing. Functional state, not a
+     hover flourish — without it the row gives no feedback at all. */
+  .thumb-frame.is-active {
+    border-color: var(--color-ink);
+  }
+
+  .thumb-frame img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+
+  /* ── identity.productGallery: 'side' ──────────────────────────────────────
+     Thumbs in a column to the left of the lead image, at roughly a fifth of its
+     width. Added ON TOP of the rules above rather than restructuring them, so a
+     shop that never opts in is reading exactly the stylesheet it read before.
+
+     WHY THIS IS A min-width BLOCK, and why nothing here has to be undone lower
+     down. Below the breakpoint a side gallery IS the default gallery — a row
+     under the lead — so the honest way to say that is to have no side rules at
+     that width at all. The existing `max-width: 430px` block then tunes that row
+     for both settings, with no override fighting it and no second copy of the
+     phone answer to keep in step.
+
+     A CLEAN BREAKPOINT, and this is the place the distinction matters. The
+     561px lower bound this codebase uses on the occasion grid exists for one
+     specific reason: a SHOP-SIDE override sits after the template's rules in the
+     same scoped stylesheet, so an unbounded `min-width` there outranks the
+     template's own phone rule on source order alone and lays a desktop grid
+     across a 390px screen. Editing the template's own file has no such
+     collision — there is no later rule to lose to — so it wants a clean bound.
+     The two situations look identical and want opposite answers.
+
+     DOM ORDER IS LEAD FIRST, thumbs second, which is right for a reader with no
+     stylesheet. The column is placed rather than reordered in the markup.
+
+     `:has(.thumb-grid)` because a product with one image draws no strip, and a
+     two-column track with nothing in the first column is a 74px hole. */
+  @media (min-width: 721px) {
+    .product-gallery--side:has(.thumb-grid) {
+      grid-template-columns: 74px minmax(0, 1fr);
+    }
+
+    .product-gallery--side:has(.thumb-grid) .lead-frame {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .product-gallery--side:has(.thumb-grid) .thumb-grid {
+      grid-column: 1;
+      grid-row: 1;
+      flex-direction: column;
+      overflow-x: visible;
+    }
+
+    /* The row's `flex: 0 0 clamp(…)` is a basis on the MAIN axis, which in a
+       column is the height — it would pin each frame taller than the square
+       image inside it and show a band of --thumb-bg under every thumb. In the
+       column the width is the track and the height follows the picture. */
+    .product-gallery--side:has(.thumb-grid) .thumb-frame {
+      flex: 0 0 auto;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .product-gallery {
+      gap: 14px;
+    }
+
+    .thumb-grid {
+      gap: 8px;
+    }
+
+    .thumb-frame {
+      flex-basis: 62px;
+    }
+  }
+</style>

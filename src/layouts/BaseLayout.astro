@@ -1,0 +1,214 @@
+---
+import "../styles/global.css";
+import Header from "../components/common/Header.astro";
+import Footer from "../components/common/Footer.astro";
+import BeaconBoot from "../components/common/BeaconBoot.astro";
+import CartDrawer from "../components/cart/CartDrawer.astro";
+import SocialRail from "../components/common/SocialRail.astro";
+import { flags } from "../lib/features";
+import { identity, tokensCss, CONFIG_GLOBAL } from "../../brand/identity";
+import { groundRolesCss } from "../lib/ground";
+import { getMerchant, API_BASE, SITE_ORIGIN, DEMO_MODE } from "../lib/commerce";
+import { deriveLegalContact } from "../lib/content-derivation.mjs";
+import { safeJson } from "../lib/safe-json";
+// demo-noindex: same constant the build's _headers and robots.txt read, so the
+// meta tag can never disagree with them. See src/lib/noindex.mjs.
+import { SITE_NOINDEX, NOINDEX_DIRECTIVE } from "../lib/noindex.mjs";
+
+interface Props {
+  title?: string;
+  description?: string;
+  fullTitle?: string;
+  image?: string;
+  jsonLd?: object | null;
+}
+
+const {
+  title = identity.name,
+  description = identity.description,
+  fullTitle,
+  image,
+  jsonLd = null,
+} = Astro.props;
+
+// Bootstrap: resolve the merchant (single memoized fetch per build). Exposes the
+// storefront publishable key + API base to the client; pk_live is a publishable
+// key and is safe in the front end.
+const merchant = await getMerchant();
+const seoDefaults = merchant?.storefront_config?.seo_defaults ?? {};
+const clientConfig = {
+  apiBase: API_BASE,
+  pk: merchant?.storefront_public_key,
+  merchantCode: merchant?.merchant_code,
+  // Demo builds have no merchant to talk to. The cart reads this and keeps
+  // its traffic local rather than posting an inert key at the live API.
+  demo: DEMO_MODE,
+};
+
+const pageTitle = fullTitle ?? (title === identity.name ? title : `${title} | ${identity.name}`);
+const ogImage = image ?? seoDefaults.og_image ?? identity.assets.logo;
+
+const canonicalURL = SITE_ORIGIN + Astro.url.pathname;
+// ogImage may be an absolute CDN URL (product pages) or a relative /assets path
+// (everything else); only prefix the origin for relative paths.
+const ogImageAbsolute = /^https?:\/\//.test(ogImage) ? ogImage : SITE_ORIGIN + ogImage;
+
+// Organization legal identity derives from storefront_config.contact — same
+// source as the footer, so the JSON-LD can never disagree with the visible
+// company block. The E.164-ish telephone drops formatting and swaps the leading
+// trunk 0 for the dialling code.
+const legalContact = deriveLegalContact(merchant?.storefront_config);
+const jsonLdTelephone =
+  identity.phoneCountryCode + "-" + legalContact.phone.replace(/\D/g, "").replace(/^0/, "");
+
+// Social profiles that actually resolve. A placeholder "#" is not a profile and
+// must not end up in sameAs.
+//
+// `sameAs: false` on an entry keeps it out DELIBERATELY, and that is a
+// different statement from a URL the filter happens not to match. `sameAs`
+// asserts "another profile page of THIS organisation" — an add-friend deep link
+// is not one, and several storefronts naming the same official account would be
+// telling a crawler that several organisations are one entity. The shops that
+// need that today get it by writing the href protocol-relative, which navigates
+// identically and misses the regex below: a correct result resting entirely on
+// this pattern never widening, with no audit, test or build failure standing
+// behind it. Declaring it is the fix; the regex stays as the check that a
+// placeholder never becomes a claim.
+const sameAs = identity.social
+  .filter((link) => link.sameAs !== false)
+  .map((link) => link.href)
+  .filter((href) => /^https?:\/\//.test(href));
+
+const siteJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_ORIGIN}/#organization`,
+      name: identity.name,
+      legalName: legalContact.legalEntity,
+      taxID: legalContact.taxId,
+      url: SITE_ORIGIN,
+      logo: SITE_ORIGIN + identity.assets.logo,
+      ...(sameAs.length ? { sameAs } : {}),
+      contactPoint: {
+        "@type": "ContactPoint",
+        telephone: jsonLdTelephone,
+        contactType: "customer service",
+        areaServed: identity.country,
+        availableLanguage: [identity.htmlLang],
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_ORIGIN}/#website`,
+      url: SITE_ORIGIN,
+      name: identity.name,
+      inLanguage: identity.htmlLang,
+      publisher: { "@id": `${SITE_ORIGIN}/#organization` },
+    },
+  ],
+};
+
+// The palette + font families as a `:root` block, compiled from
+// brand/identity.ts. Inlined per page rather than emitted as a stylesheet so no
+// generated file exists to go stale against its source.
+//
+// Then the ground ROLE bindings on top of it: a block declares [data-ground]
+// and its ink, hairlines and accent resolve to the pale set or the dark one.
+// They live in src/lib/ground.ts rather than in brand/, because they name
+// tokens without holding any — the values are the shop's, the mapping is the
+// template's. See src/lib/ground.ts.
+const rootTokens = `${tokensCss()}\n\n${groundRolesCss}`;
+---
+
+<!doctype html>
+<html lang={identity.htmlLang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+    {/* demo-noindex: belt to robots.txt's braces. robots.txt Disallow stops
+        crawling, which is not the same as stopping indexing — a URL linked from
+        elsewhere can still be listed. This tag is what a crawler that DOES
+        fetch the page reads. */}
+    {SITE_NOINDEX && <meta name="robots" content={NOINDEX_DIRECTIVE} />}
+    <style is:inline set:html={rootTokens}></style>
+    <link rel="icon" type={identity.assets.faviconType} href={identity.assets.favicon} />
+    <link rel="canonical" href={canonicalURL} />
+    {identity.fontStylesheets.map((href) => <link rel="stylesheet" href={href} />)}
+    <title>{pageTitle}</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={identity.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:image" content={ogImageAbsolute} />
+    <meta property="og:locale" content={identity.ogLocale} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageAbsolute} />
+    <script type="application/ld+json" set:html={safeJson(siteJsonLd)} />
+    {jsonLd && <script type="application/ld+json" set:html={safeJson(jsonLd)} />}
+    <script is:inline set:html={`window.${CONFIG_GLOBAL}=${safeJson(clientConfig)};`} />
+  </head>
+  <body>
+    {/* Inline (parse-time) beacon bootstrap: first-touch UTM, hidden/pagehide flush,
+        the immediate-send beacon. Ships is:inline so it runs even on a sub-100ms
+        visit that never downloads the bundled module below. */}
+    <BeaconBoot />
+    <Header />
+    {/* TWO WHOLE BLOCKS, not one block with a conditional import, and not a
+        shared analytics block plus a conditional cart one.
+
+        The cart bundle has to be conditional: a showcase storefront has no
+        badge to paint, no drawer to bind and no cart on the API to GET, so
+        importing it would ship and parse the whole module to call two functions
+        that find nothing — and initBadge would still put a request out for a
+        basket this shop does not have.
+
+        Splitting it out of the analytics block would have been tidier to read
+        and would have emitted a SECOND <script type="module"> on every
+        transacting storefront that ships today. Identical behaviour, different
+        HTML — and "the flag defaults on, so nothing changes" is a claim worth
+        keeping literally true. So the selling branch is the block as it was,
+        character for character. */}
+    {flags.commerce ? (
+      <script>
+        import { initBadge, initCartDrawer } from "../scripts/cart";
+        import { captureUtm, initBeaconFlush } from "../lib/track";
+        // captureUtm/initBeaconFlush are owned by <BeaconBoot /> (inline, runs
+        // earlier). These module-path calls stay as an idempotent safety net; both are
+        // guarded to be no-ops when the inline bootstrap already ran. initBeaconFlush
+        // still owns drain-on-load (re-send a prior visit's unconfirmed queue WITH auth).
+        captureUtm();
+        initBeaconFlush();
+        initBadge();
+        // No-ops when the drawer is not rendered (flags.cartPage on).
+        initCartDrawer();
+      </script>
+    ) : (
+      <script>
+        import { captureUtm, initBeaconFlush } from "../lib/track";
+        // Analytics runs in every build — a showcase measures its traffic like
+        // any other site. Same idempotent safety net as above; only the cart
+        // half is gone.
+        captureUtm();
+        initBeaconFlush();
+      </script>
+    )}
+    <main>
+      <slot />
+    </main>
+    <Footer />
+    {/* The cart drawer, when this shop sells and has no /cart page to send
+        anyone to. `flags.cartPage` is already ANDed with `flags.commerce` in
+        src/lib/features.ts, so `!cartPage` alone would mount a drawer on every
+        showcase storefront — the one place the resolved flag reads the wrong
+        way round and has to be spelled out. */}
+    {flags.commerce && !flags.cartPage && <CartDrawer />}
+    <SocialRail />
+  </body>
+</html>

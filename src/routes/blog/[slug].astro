@@ -1,0 +1,286 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Button from "../../components/common/Button.astro";
+import { getAllArticles, getArticle, SITE_ORIGIN, type ApiArticleDetail } from "../../lib/commerce";
+import { createMarkdownProcessor, markdownConfigDefaults } from "@astrojs/markdown-remark";
+import { sanitizeArticleHtml } from "../../lib/article-sanitize";
+import { blog } from "../../../brand/copy";
+
+export async function getStaticPaths() {
+  const list = await getAllArticles();
+  const processor = await createMarkdownProcessor(markdownConfigDefaults);
+
+  // Fetch details in small chunks, paced under the storefront worker's
+  // 100 req/min/IP rate limit (whole build ≈ 130 requests); 429s back off hard.
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  async function getArticleWithRetry(slug: string, attempt = 1): Promise<ApiArticleDetail> {
+    try {
+      return await getArticle(slug);
+    } catch (err) {
+      if (attempt >= 6 || !String(err).includes("429")) throw err;
+      await sleep(10_000 * attempt);
+      return getArticleWithRetry(slug, attempt + 1);
+    }
+  }
+
+  const details: ApiArticleDetail[] = [];
+  const CHUNK = 4;
+  for (let i = 0; i < list.length; i += CHUNK) {
+    const chunk = await Promise.all(
+      list.slice(i, i + CHUNK).map((a) => getArticleWithRetry(a.slug)),
+    );
+    details.push(...chunk);
+    await sleep(3000);
+  }
+
+  return Promise.all(
+    details.map(async (article) => {
+      const rendered = await processor.render(article.content_md ?? "");
+      // Sanitise AFTER Astro's pipeline (its rehype-raw runs last) — see
+      // lib/article-sanitize.ts for why rehypePlugins is the wrong hook.
+      return {
+        params: { slug: article.slug },
+        props: { article, contentHtml: await sanitizeArticleHtml(rendered.code) },
+      };
+    }),
+  );
+}
+
+const { article, contentHtml } = Astro.props;
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`;
+}
+
+const seoDescription =
+  (article.seo_meta as any)?.description ?? article.excerpt ?? article.title;
+
+// --- SEO: BlogPosting + BreadcrumbList JSON-LD --------------------------------
+// URLs are string-concatenated off SITE_ORIGIN (never new URL(...) — that trips
+// a build OOM); the org @id references the graph emitted by BaseLayout.
+const blogUrl = `${SITE_ORIGIN}/blog/${article.slug}`;
+const articleImage = article.featured_image_url
+  ? (/^https?:\/\//.test(article.featured_image_url)
+      ? article.featured_image_url
+      : SITE_ORIGIN + article.featured_image_url)
+  : null;
+
+const blogPostingJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: article.title,
+  description: seoDescription,
+  ...(articleImage ? { image: articleImage } : {}),
+  ...(article.published_at ? { datePublished: article.published_at } : {}),
+  ...(article.updated_at || article.published_at
+    ? { dateModified: article.updated_at ?? article.published_at }
+    : {}),
+  author: { "@id": `${SITE_ORIGIN}/#organization` },
+  publisher: { "@id": `${SITE_ORIGIN}/#organization` },
+  mainEntityOfPage: { "@type": "WebPage", "@id": blogUrl },
+  ...(article.tags && article.tags.length ? { keywords: article.tags.join(", ") } : {}),
+};
+
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "首頁", item: `${SITE_ORIGIN}/` },
+    { "@type": "ListItem", position: 2, name: blog.itemListName, item: `${SITE_ORIGIN}/blog` },
+    { "@type": "ListItem", position: 3, name: article.title, item: blogUrl },
+  ],
+};
+---
+
+<BaseLayout title={article.title} description={seoDescription} jsonLd={[blogPostingJsonLd, breadcrumbJsonLd]}>
+  <div class="article-page">
+    <article class="container article-shell">
+      <header class="article-header" data-section="blog_detail.header">
+        <p class="eyebrow">{blog.eyebrow}</p>
+        <h1 class="page-title">{article.title}</h1>
+        <p class="article-meta">
+          <span>{article.author_name || blog.authorFallback}</span>
+          <time datetime={article.published_at ?? undefined}>{fmtDate(article.published_at)}</time>
+          {article.reading_time_minutes ? <span>閱讀 {article.reading_time_minutes} 分鐘</span> : null}
+        </p>
+        {article.tags && article.tags.length ? (
+          <p class="article-tags">
+            {article.tags.map((t) => <span class="article-tag">{t}</span>)}
+          </p>
+        ) : null}
+      </header>
+
+      <div class="article-body" data-section="blog_detail.body" set:html={contentHtml} />
+
+      <footer class="article-footer">
+        <Button href="/blog">回到{blog.metaTitle}</Button>
+        <Button href="/products" variant="secondary">查看商品</Button>
+      </footer>
+    </article>
+  </div>
+</BaseLayout>
+
+<style>
+  .article-page {
+    background: var(--color-soft);
+    padding-block: clamp(112px, 10vw, 148px) clamp(72px, 7vw, 110px);
+  }
+
+  .article-shell {
+    max-width: 760px;
+  }
+
+  .article-header {
+    text-align: center;
+    margin-bottom: clamp(36px, 4vw, 52px);
+  }
+
+  .article-header .page-title {
+    line-height: 1.45;
+  }
+
+  .article-meta {
+    margin: 18px 0 0;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    color: var(--color-muted);
+    font-size: 13px;
+    letter-spacing: 0.05em;
+  }
+
+  .article-tags {
+    margin: 14px 0 0;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .article-tag {
+    padding: 3px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    color: var(--color-muted);
+    font-size: 12px;
+    letter-spacing: 0.03em;
+  }
+
+  .article-body {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: clamp(28px, 4vw, 56px);
+    color: var(--color-text);
+    font-size: 15.5px;
+    line-height: 2;
+    letter-spacing: 0.02em;
+    overflow-wrap: break-word;
+  }
+
+  .article-body :global(h1),
+  .article-body :global(h2) {
+    margin: 2.2em 0 0.9em;
+    font-size: 22px;
+    line-height: 1.6;
+    font-weight: 600;
+  }
+
+  .article-body :global(h3) {
+    margin: 1.8em 0 0.8em;
+    font-size: 18px;
+    line-height: 1.6;
+    font-weight: 600;
+  }
+
+  .article-body :global(h4) {
+    margin: 1.6em 0 0.7em;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .article-body :global(h1:first-child),
+  .article-body :global(h2:first-child),
+  .article-body :global(h3:first-child),
+  .article-body :global(p:first-child) {
+    margin-top: 0;
+  }
+
+  .article-body :global(p) {
+    margin: 0 0 1.2em;
+  }
+
+  .article-body :global(img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 1.6em auto;
+    border-radius: var(--radius-sm);
+  }
+
+  .article-body :global(ul),
+  .article-body :global(ol) {
+    margin: 0 0 1.2em;
+    padding-left: 1.6em;
+  }
+
+  .article-body :global(li) {
+    margin-bottom: 0.4em;
+  }
+
+  .article-body :global(a) {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .article-body :global(table) {
+    width: 100%;
+    margin: 1.6em 0;
+    border-collapse: collapse;
+    font-size: 14px;
+    display: block;
+    overflow-x: auto;
+  }
+
+  .article-body :global(th),
+  .article-body :global(td) {
+    border: 1px solid var(--color-border);
+    padding: 10px 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .article-body :global(th) {
+    background: var(--color-mist);
+    font-weight: 600;
+  }
+
+  .article-body :global(blockquote) {
+    margin: 1.4em 0;
+    padding: 4px 0 4px 18px;
+    border-left: 3px solid var(--color-border);
+    color: var(--color-muted);
+  }
+
+  .article-footer {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin-top: clamp(36px, 4vw, 52px);
+  }
+
+  @media (max-width: 430px) {
+    .article-footer {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+</style>

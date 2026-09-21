@@ -1,0 +1,816 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatMoney, BEACON_GLOBAL } from "../../../brand/identity";
+import { products as productsCopy, productDetail } from "../../../brand/copy";
+import Button from "../../components/common/Button.astro";
+import ProductGallery from "../../components/product/ProductGallery.astro";
+import ProductGrid from "../../components/product/ProductGrid.astro";
+import { getProducts, getProduct, getMerchant, toCard, SITE_DOMAIN, SITE_ORIGIN } from "../../lib/commerce";
+import { isVisibleHref, flags } from "../../lib/features";
+import { lineEnquiryHref, enquiryMessage } from "../../lib/line";
+import { productDescriptionToHtml } from "../../lib/markdown";
+
+export async function getStaticPaths() {
+  const list = await getProducts();
+  const details = await Promise.all(list.map((p) => getProduct(p.handle)));
+  return details.map((product) => ({ params: { handle: product.handle }, props: { product } }));
+}
+
+const { product } = Astro.props;
+
+// View model — prices come straight from the API variant, never computed here.
+const variant = product.variants?.[0] ?? {};
+const price = variant.price ?? product.min_price ?? 0;
+const currency = product.currency ?? "TWD";
+const name = product.title;
+const spec = product.subtitle ?? name;
+const rawVariants = product.variants?.length ? product.variants : [variant];
+// Single-variant products (all current active SKUs) pre-select their only spec
+// so both CTAs are usable without a click; multi-variant keeps the pick gate.
+const singleVariant = rawVariants.length === 1;
+const variantOptions = rawVariants.map((item: any) => ({
+  id: item.id,
+  label: item.title && item.title !== "Default" ? item.title : spec,
+  price: Number(item.price) || 0,
+  selected: singleVariant,
+}));
+
+// The price the panel opens on. A multi-variant product has no single price
+// until the customer picks one, so it opens on the RANGE and narrows to the
+// exact figure on selection (wireAddToCartButtons drives that). Both bounds come
+// from the variants: the detail payload carries no min_price/max_price.
+/**
+ * SHOWCASE MODE (`flags.commerce: false`): one enquiry link PER SPEC, resolved
+ * at build time.
+ *
+ * The alternative is assembling a line.me URL in the browser when a spec is
+ * clicked, which would put a second copy of src/lib/line.ts's rules on the
+ * client — and money and product names would have to be escaped there too.
+ * Emitting a finished href per option keeps the client script down to "copy
+ * this attribute onto that button", which cannot drift.
+ *
+ * Null throughout when this shop has no LINE destination at all; the CTA is
+ * then not rendered rather than pointed at nothing.
+ */
+const enquiryOptions = variantOptions.map((option: any) => ({
+  ...option,
+  // The spec is only worth naming when it says something the product name does
+  // not — a single-variant product whose "spec" is its own subtitle would
+  // otherwise send 我想詢問：天絲萊賽爾四件組 天絲萊賽爾四件組.
+  enquiryHref: flags.commerce
+    ? null
+    : lineEnquiryHref(
+        enquiryMessage(
+          productDetail.inquiryMessage,
+          option.label && option.label !== name ? `${name} ${option.label}` : name,
+        ),
+      ),
+  priceLabel: flags.commerce ? null : formatMoney(option.price),
+}));
+// What the CTA points at before anything is clicked. A single-variant product
+// is pre-selected by construction, so it opens on its own spec's message; a
+// multi-variant one asks about the product and lets the customer say which.
+const enquiryHref = flags.commerce
+  ? null
+  : singleVariant && enquiryOptions[0]?.enquiryHref
+    ? enquiryOptions[0].enquiryHref
+    : lineEnquiryHref(enquiryMessage(productDetail.inquiryMessage, name));
+
+const variantPrices = variantOptions.map((option: any) => option.price).filter((p: number) => p > 0);
+const lowestPrice = variantPrices.length ? Math.min(...variantPrices) : price;
+const highestPrice = variantPrices.length ? Math.max(...variantPrices) : price;
+const openingPrice =
+  singleVariant || highestPrice <= lowestPrice
+    ? formatMoney(price)
+    : `${formatMoney(lowestPrice)} – ${formatMoney(highestPrice)}`;
+
+// The collection chip above the title. Data-driven off the product's own tag —
+// there is no separate collection field on this payload.
+const collectionLabel: string = product.tags?.[0] ?? "";
+
+// "您可能也喜歡" — the rest of the catalogue, minus this product. getProducts is
+// memoised for the build, so this costs nothing beyond the list already fetched
+// by getStaticPaths.
+const related = (await getProducts())
+  .filter((item: any) => item.handle !== product.handle)
+  .slice(0, 5)
+  .map(toCard);
+const galleryImages: string[] =
+  product.media?.length ? product.media.map((m: any) => m.url) : [product.thumbnail];
+const galleryProduct = { name, image: product.thumbnail, gallery: galleryImages };
+
+// Product long-form description (Markdown from the CMS). Empty/short copy renders
+// nothing — the block is fully omitted so thin products never leave a gap.
+const descriptionHtml = productDescriptionToHtml(product.description);
+
+// SEO: prefer the product's own seo object, fall back to merchant seo_defaults.
+const merchant = await getMerchant();
+const seoDefaults = merchant?.storefront_config?.seo_defaults ?? {};
+// Free-shipping threshold is config-driven (backend真值 1500), never hardcoded.
+const freeShippingThreshold = merchant?.shipping_config?.free_shipping_threshold ?? null;
+const seoTitle = product.seo?.title ?? `${name}｜${merchant.store_name}`;
+const seoDescription =
+  product.seo?.description ?? product.subtitle ?? seoDefaults.default_description ?? "";
+const productUrl = `https://${SITE_DOMAIN}/products/${product.handle}`;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Product",
+  name,
+  description: seoDescription,
+  image: galleryImages,
+  brand: { "@type": "Brand", name: merchant.store_name },
+  offers: {
+    "@type": "Offer",
+    price,
+    priceCurrency: currency,
+    availability: "https://schema.org/InStock",
+    url: productUrl,
+  },
+};
+
+// BreadcrumbList — string-concatenated off SITE_ORIGIN. Never new URL(...,
+// Astro.site): that path trips a build-time OOM on large catalogues.
+// The catalogue index is only a crumb when it exists. Visible trail and
+// JSON-LD are built from the same flag, so they cannot disagree about how many
+// segments this page has.
+const hasCatalogueIndex = isVisibleHref("/products");
+
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "首頁", item: `${SITE_ORIGIN}/` },
+    ...(hasCatalogueIndex
+      ? [{ "@type": "ListItem", position: 2, name: productsCopy.metaTitle, item: `${SITE_ORIGIN}/products` }]
+      : []),
+    {
+      "@type": "ListItem",
+      position: hasCatalogueIndex ? 3 : 2,
+      name,
+      item: `${SITE_ORIGIN}/products/${product.handle}`,
+    },
+  ],
+};
+---
+
+<BaseLayout fullTitle={seoTitle} description={seoDescription} image={product.thumbnail} jsonLd={[jsonLd, breadcrumbJsonLd]}>
+  <script is:inline>
+    // PDP F5/reload should land at the top, not a restored scroll position.
+    // Skip when the URL carries a #hash so in-page anchor jumps still work.
+    history.scrollRestoration = "manual";
+    if (!location.hash) {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      addEventListener("DOMContentLoaded", () => {
+        if (!location.hash) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      });
+    }
+  </script>
+
+  <section
+    class="section product-detail-page"
+    data-section="product_detail_hero"
+  >
+    <nav class="container detail-crumb" aria-label="麵包屑">
+      <a href="/">首頁</a>
+      <span aria-hidden="true">/</span>
+      {hasCatalogueIndex && (
+        <>
+          <a href="/products">{productsCopy.metaTitle}</a>
+          <span aria-hidden="true">/</span>
+        </>
+      )}
+      <span aria-current="page">{name}</span>
+    </nav>
+
+    <div class="container detail-grid">
+      <div class="gallery-column">
+        <ProductGallery product={galleryProduct} />
+      </div>
+
+      <article
+        class="summary-panel"
+        data-section="product_summary"
+        data-cart-scope
+      >
+        {collectionLabel && <p class="collection-chip">{collectionLabel}</p>}
+        <h1 class="page-title">{name}</h1>
+        {spec && spec !== name && <p class="summary-subtitle">{spec}</p>}
+
+        <div class="summary-row summary-row--price">
+          {/* Rewritten by wireAddToCartButtons() when a spec is chosen. */}
+          <span class="price" data-variant-price>{openingPrice}</span>
+        </div>
+
+        <div class="divider" aria-hidden="true"></div>
+
+        <div class="field-group">
+          <p class="field-label">規格</p>
+          <div class="spec-options" role="group" aria-label="規格選擇">
+            {enquiryOptions.map((option: any) => (
+              <button
+                type="button"
+                class:list={["spec-option", option.selected && "is-active"]}
+                data-variant-option
+                data-variant-id={option.id}
+                data-price={option.price}
+                data-price-label={option.priceLabel ?? undefined}
+                data-enquiry-href={option.enquiryHref ?? undefined}
+                aria-pressed={option.selected ? "true" : "false"}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quantity feeds the cart and nothing else, so a showcase storefront
+            does not render it. A stepper that changes no total and reaches no
+            basket is a control the customer can operate and get nothing from —
+            "how many" is part of the LINE conversation instead. */}
+        {flags.commerce && (
+          <div class="field-group">
+            <p class="field-label">數量</p>
+            <div class="quantity-row" aria-label="數量選擇">
+              <button class="quantity-button" type="button" aria-label="decrease quantity" data-qty-dec>−</button>
+              <span class="quantity-value" data-qty-value>1</span>
+              <button class="quantity-button" type="button" aria-label="increase quantity" data-qty-inc>+</button>
+            </div>
+          </div>
+        )}
+
+        <div class="summary-actions">
+          {flags.commerce ? (
+            <>
+              {/* data-unit-price / -handle / -image are read only by demo mode,
+                  which has no API to ask for a title or a price. Live, the server
+                  owns every field on the line and they are ignored. */}
+              <Button
+                href="/cart"
+                data-add-to-cart
+                data-variant-id=""
+                data-product-id={product.id}
+                data-product-title={name}
+                data-product-handle={product.handle}
+                data-product-image={product.thumbnail}
+                data-unit-price={price}
+              >加入購物車</Button>
+              <Button href="/checkout" variant="secondary" data-buy-now>立即購買</Button>
+            </>
+          ) : (
+            enquiryHref && (
+              <Button
+                href={enquiryHref}
+                data-line-enquiry
+                target={/^https?:/.test(enquiryHref) ? "_blank" : undefined}
+                rel={/^https?:/.test(enquiryHref) ? "noopener noreferrer" : undefined}
+              >{productDetail.inquiryLabel}</Button>
+            )
+          )}
+        </div>
+
+        {/* Free shipping is a promise about a checkout. A showcase storefront
+            has none, so the threshold is a rule about a flow this build did not
+            produce — and the merchant record still carries it, because the
+            merchant is the same merchant. */}
+        {flags.commerce && freeShippingThreshold && <p class="shipping-note">滿 {formatMoney(freeShippingThreshold)} 免運費</p>}
+
+        <ul class="assurance-row">
+          {productDetail.assurances.map((item) => (
+            <li>
+              {item.icon && <img src={item.icon} alt="" width="28" height="28" loading="lazy" decoding="async" />}
+              <strong>{item.title}</strong>
+              <span>{item.text}</span>
+            </li>
+          ))}
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  {/* Three tabs, CSS-only: every panel is in the HTML and stays in the DOM, so
+      a crawler reads all three; the radios flip which one is visible via
+      :checked ~ sibling selectors. Same mechanism as the FAQ page's category
+      tabs — no JS, and it works before hydration. */}
+  <section class="section product-description" data-section="product_description">
+    <div class="container">
+      <div class="pd-tabs">
+        <input type="radio" name="pd-tab" id="pd-tab-0" class="pd-tab-input" checked />
+        <input type="radio" name="pd-tab" id="pd-tab-1" class="pd-tab-input" />
+        <input type="radio" name="pd-tab" id="pd-tab-2" class="pd-tab-input" />
+
+        <div class="pd-tablist" role="tablist">
+          <label for="pd-tab-0">{productDetail.tabs.description}</label>
+          <label for="pd-tab-1">{productDetail.tabs.ingredients}</label>
+          <label for="pd-tab-2">{productDetail.tabs.ordering}</label>
+        </div>
+
+        <div class="pd-panels">
+          <div class="pd-panel" data-panel="0">
+            {descriptionHtml ? (
+              <div class="description-copy" set:html={descriptionHtml}></div>
+            ) : (
+              <p class="pd-empty">{productDetail.descriptionFallback}</p>
+            )}
+          </div>
+          <div class="pd-panel" data-panel="1">
+            <ul>{productDetail.ingredients.map((line) => <li>{line}</li>)}</ul>
+          </div>
+          <div class="pd-panel" data-panel="2">
+            <ul>{productDetail.ordering.map((line) => <li>{line}</li>)}</ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {related.length > 0 && (
+    <section class="section related-section" data-section="product_related">
+      <div class="container">
+        <h2 class="section-title related-title">{productDetail.relatedTitle}</h2>
+        <ProductGrid products={related} variant="compact" desktopColumns={5} tabletColumns={3} mobileColumns={2} />
+      </div>
+    </section>
+  )}
+
+  {flags.commerce && (
+    <script>
+      import { wireAddToCartButtons } from "../../scripts/cart";
+      wireAddToCartButtons();
+    </script>
+  )}
+
+  {/* The showcase spec picker. wireAddToCartButtons() owns this behaviour when
+      the shop sells, and it is the whole cart bundle — so a shop with nothing
+      to add to a cart gets these fifteen lines instead of that import.
+
+      Everything it writes was computed at BUILD time and is sitting on the
+      option that was clicked: the formatted price, and the finished LINE href
+      for that spec. No money is formatted here and no URL is assembled here,
+      which is the point — both of those have rules, and the rules live in
+      brand/identity.ts and src/lib/line.ts. */}
+  {!flags.commerce && (
+    <script is:inline>
+      document.querySelectorAll("[data-cart-scope]").forEach(function (scope) {
+        var cta = scope.querySelector("[data-line-enquiry]");
+        var priceEl = scope.querySelector("[data-variant-price]");
+        var options = Array.prototype.slice.call(scope.querySelectorAll("[data-variant-option]"));
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            options.forEach(function (other) {
+              var active = other === option;
+              other.classList.toggle("is-active", active);
+              other.setAttribute("aria-pressed", active ? "true" : "false");
+            });
+            var label = option.getAttribute("data-price-label");
+            if (priceEl && label) priceEl.textContent = label;
+            var href = option.getAttribute("data-enquiry-href");
+            if (cta && href) cta.setAttribute("href", href);
+          });
+        });
+      });
+    </script>
+  )}
+  {/* product_view fires INLINE (parse-time) via <BeaconBoot>'s beacon global, not
+      the deferred module above — a sub-100ms 開頁→秒關 never runs the bundled
+      module, so an auto-fire event must not depend on it. sendBeacon delivers
+      through unload; the product id is injected server-side, so there is no
+      DOM-timing dependency either. */}
+  <script is:inline define:vars={{ pid: product.id, BEACON_GLOBAL }}>
+    if (pid && window[BEACON_GLOBAL]) window[BEACON_GLOBAL]("product_view", { product_id: pid });
+  </script>
+</BaseLayout>
+
+<style>
+  .product-detail-page {
+    background: var(--color-product-bg);
+    padding-block: clamp(56px, 7vw, 92px);
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.04fr) minmax(340px, 0.92fr);
+    gap: clamp(28px, 3.2vw, 52px);
+    align-items: start;
+  }
+
+  .gallery-column {
+    min-width: 0;
+  }
+
+  .summary-panel {
+    position: sticky;
+    top: 96px;
+    display: grid;
+    gap: 20px;
+    align-content: start;
+    min-width: 0;
+    padding-top: 8px;
+  }
+
+  .summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .summary-row--price {
+    justify-content: flex-start;
+    gap: 18px;
+  }
+
+  .page-title {
+    font-size: clamp(24px, 2.4vw, 32px);
+    line-height: 1.28;
+    letter-spacing: 0.01em;
+  }
+
+  .price {
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: clamp(32px, 2.8vw, 38px);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--title-letter-spacing);
+    line-height: 1.15;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--color-border);
+  }
+
+  .field-group {
+    display: grid;
+    gap: 12px;
+  }
+
+  .field-label {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .spec-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-width: 100%;
+  }
+
+  .spec-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 112px;
+    max-width: 180px;
+    min-height: 42px;
+    padding: 10px 18px;
+    border: 1px solid var(--border-soft);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 15px;
+    line-height: 1.4;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  /* Which variant is selected. Functional state — the add-to-cart button reads
+     it, so it has to be visible. */
+  .spec-option.is-active,
+  .spec-option[aria-pressed="true"] {
+    border-color: var(--color-cta);
+    background: var(--color-cta);
+    color: var(--color-cta-text);
+  }
+
+  .quantity-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .quantity-button {
+    width: 42px;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    font-size: 20px;
+    line-height: 1;
+    cursor: default;
+  }
+
+  .quantity-value {
+    min-width: 14px;
+    text-align: center;
+    color: var(--color-ink);
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .summary-actions {
+    display: grid;
+    gap: 10px;
+    padding-top: 6px;
+  }
+
+  .summary-actions :global(.button) {
+    width: 100%;
+    min-height: 52px;
+    padding-inline: 24px;
+  }
+
+  .shipping-note {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 13px;
+    line-height: 1.7;
+    text-align: center;
+  }
+
+  /* Long-form description — mirrors the legal-document prose vocabulary. */
+  .product-description {
+    background: var(--color-product-bg);
+    padding-block: 0 clamp(48px, 6vw, 84px);
+  }
+
+  /* The measure belongs INSIDE the container, not on it. It used to be both —
+     .container centres its 1200px box, then max-width:760px centred again
+     within that, putting the tab strip 220px right of the product image
+     directly above it. Two blocks of one page starting on different vertical
+     lines. Prose still wants a measure; it just starts where the page starts. */
+  .pd-tabs {
+    max-width: 760px;
+    text-align: left;
+  }
+
+  .description-heading {
+    margin: 0 0 20px;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--card-title-letter-spacing);
+    line-height: var(--card-title-line-height);
+  }
+
+  .description-copy :global(h2),
+  .description-copy :global(h3) {
+    margin: 32px 0 14px;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--card-title-letter-spacing);
+    line-height: var(--card-title-line-height);
+  }
+
+  .description-copy :global(:first-child) {
+    margin-top: 0;
+  }
+
+  .description-copy :global(p),
+  .description-copy :global(li) {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--description-text-size);
+    font-weight: var(--body-weight);
+    letter-spacing: var(--description-letter-spacing);
+    line-height: 2;
+  }
+
+  .description-copy :global(p + p),
+  .description-copy :global(ul) {
+    margin-top: 14px;
+  }
+
+  .description-copy :global(ul) {
+    padding-left: 20px;
+  }
+
+  .description-copy :global(strong) {
+    font-weight: var(--title-weight);
+    color: var(--color-ink);
+  }
+
+  @media (max-width: 980px) {
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .summary-panel {
+      position: static;
+      padding-top: 0;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .product-detail-page {
+      padding-block: 36px 52px;
+    }
+
+    .summary-panel {
+      gap: 14px;
+    }
+
+    .summary-row--price {
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .page-title {
+      font-size: clamp(22px, 7vw, 28px);
+    }
+
+    .price {
+      font-size: clamp(28px, 7vw, 34px);
+    }
+
+    .spec-options {
+      gap: 8px;
+    }
+
+    .spec-option {
+      min-width: 112px;
+      max-width: 100%;
+    }
+
+    .quantity-row {
+      gap: 16px;
+    }
+  }
+
+  /* --- Design-comp additions (02-product-detail.png) ----------------------- */
+
+  .detail-crumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    color: var(--text-muted);
+    font-size: var(--meta-text-size);
+    line-height: 1.6;
+  }
+
+  .detail-crumb [aria-current="page"] {
+    color: var(--text-secondary);
+  }
+
+  .collection-chip {
+    margin: 0;
+    color: var(--color-cta);
+    font-size: var(--meta-text-size);
+    letter-spacing: var(--label-letter-spacing);
+    line-height: 1.4;
+  }
+
+  .summary-subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--description-text-size);
+    line-height: var(--description-line-height);
+  }
+
+  .assurance-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin: var(--space-2) 0 0;
+    padding: var(--space-4) 0 0;
+    border-top: 1px solid var(--color-border);
+    list-style: none;
+  }
+
+  .assurance-row li {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .assurance-row img {
+    width: 26px;
+    height: 26px;
+    margin: 0 auto 8px;
+    object-fit: contain;
+  }
+
+  .assurance-row strong {
+    display: block;
+    color: var(--color-ink);
+    font-size: var(--description-text-size);
+    font-weight: var(--body-weight);
+    line-height: 1.5;
+  }
+
+  .assurance-row span {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: var(--meta-text-size);
+    line-height: 1.5;
+  }
+
+  /* Tabs. The inputs stay in the DOM (focusable) but out of the layout; the
+     `~` selectors below do the switching, so this works with JS disabled. */
+  .pd-tab-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .pd-tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .pd-tablist label {
+    padding: 0 0 14px;
+    color: var(--text-muted);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    line-height: 1.5;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+  }
+
+  .pd-panel {
+    display: none;
+    padding-top: var(--space-5);
+  }
+
+  .pd-panel ul {
+    margin: 0;
+    padding-left: 1.2em;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .pd-panel li,
+  .pd-empty {
+    color: var(--text-secondary);
+    font-size: var(--body-text-size);
+    line-height: var(--body-line-height);
+  }
+
+  .pd-empty {
+    margin: 0;
+  }
+
+  #pd-tab-0:checked ~ .pd-panels .pd-panel[data-panel="0"],
+  #pd-tab-1:checked ~ .pd-panels .pd-panel[data-panel="1"],
+  #pd-tab-2:checked ~ .pd-panels .pd-panel[data-panel="2"] {
+    display: block;
+  }
+
+  #pd-tab-0:checked ~ .pd-tablist label[for="pd-tab-0"],
+  #pd-tab-1:checked ~ .pd-tablist label[for="pd-tab-1"],
+  #pd-tab-2:checked ~ .pd-tablist label[for="pd-tab-2"] {
+    color: var(--color-ink);
+    border-bottom-color: var(--color-cta);
+  }
+
+  #pd-tab-0:focus-visible ~ .pd-tablist label[for="pd-tab-0"],
+  #pd-tab-1:focus-visible ~ .pd-tablist label[for="pd-tab-1"],
+  #pd-tab-2:focus-visible ~ .pd-tablist label[for="pd-tab-2"] {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  .related-section {
+    background: var(--color-product-bg);
+  }
+
+  /* Left, with the grid beneath it and the image above it. A centred heading
+     over a left-aligned grid reads as a third alignment on a page that should
+     have one. */
+  .related-title {
+    margin: 0 0 var(--space-5);
+    text-align: left;
+    letter-spacing: 0.14em;
+  }
+
+  @media (max-width: 560px) {
+    .assurance-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-4);
+    }
+
+    .pd-tablist {
+      gap: var(--space-4);
+    }
+
+    .pd-tablist label {
+      font-size: var(--body-text-size);
+    }
+  }
+</style>

@@ -1,0 +1,685 @@
+---
+import { blog } from "../../../brand/copy";
+import type { ApiListArticle } from "../../lib/commerce";
+import { blogPageSlice } from "../../lib/seo";
+import { resolveCardImage, type CardImage } from "../../lib/article-card-image";
+
+interface Props {
+  articles: ApiListArticle[];
+  currentPage: number;
+  pageSize: number;
+}
+
+const { articles, currentPage, pageSize } = Astro.props;
+const { featured, visibleArticles } = blogPageSlice(articles, currentPage, pageSize);
+const pageCount = Math.max(1, Math.ceil(Math.max(articles.length - (featured ? 1 : 0), 0) / pageSize));
+const pageNumbers = Array.from({ length: pageCount }, (_, index) => index + 1);
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`;
+}
+
+function pageHref(page: number): string {
+  return page === 1 ? "/blog/" : `/blog/page/${page}/`;
+}
+
+function readingLabel(article: ApiListArticle): string {
+  return article.reading_time_minutes ? `閱讀 ${article.reading_time_minutes} 分鐘` : "文章";
+}
+
+function primaryTag(article: ApiListArticle): string {
+  return article.tags?.[0] ?? blog.categoryFallback;
+}
+
+function cardImage(article: ApiListArticle): CardImage | null {
+  return resolveCardImage(article.featured_image_url);
+}
+
+const topicCounts = new Map<string, number>();
+articles.forEach((article) => {
+  article.tags?.forEach((tag) => topicCounts.set(tag, (topicCounts.get(tag) ?? 0) + 1));
+});
+const topics = Array.from(topicCounts.entries())
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 6)
+  .map(([name]) => name);
+// Topic chips are derived from the tags the catalogue actually carries; a shop
+// with no tags yet gets the single "all" chip rather than an invented taxonomy.
+const topicPills = ["全部文章", ...topics.slice(0, 5)];
+const popularArticles = articles.slice(0, 5);
+const previousPage = currentPage > 1 ? currentPage - 1 : null;
+const nextPage = currentPage < pageCount ? currentPage + 1 : null;
+---
+
+<div class="blog-page">
+  <section class="blog-hero page-hero" data-section="blog_hero">
+    <div class="container hero-copy">
+      <p class="eyebrow">{blog.eyebrow}</p>
+      <h1 class="page-title">{blog.metaTitle}</h1>
+      <p class="lead">{blog.metaDescription}</p>
+    </div>
+  </section>
+
+  <section class="section blog-list-section" id="article-list" data-section="blog_list">
+    <div class="container blog-shell">
+      <div class="topic-pills" aria-label="文章主題">
+        {topicPills.map((topic, index) => (
+          <a class:list={["topic-pill", index === 0 && "is-active"]} href="#article-list">{topic}</a>
+        ))}
+      </div>
+
+      <div class="blog-layout">
+        <div class="blog-main">
+          <header class="section-heading">
+            <p class="eyebrow">Editor's Pick</p>
+            <h2>編輯精選</h2>
+          </header>
+
+          {featured && (
+            <a class="featured-card" href={`/blog/${featured.slug}`}>
+              <div class="featured-media">
+                {cardImage(featured) ? (
+                  /* Likely the page's LCP element — eager + high priority. */
+                  <img
+                    src={cardImage(featured)!.src}
+                    width={cardImage(featured)!.width}
+                    height={cardImage(featured)!.height}
+                    alt={featured.title}
+                    loading="eager"
+                    fetchpriority="high"
+                    decoding="async"
+                  />
+                ) : (
+                  <span>{blog.eyebrow}</span>
+                )}
+              </div>
+              <div class="featured-body">
+                <span class="article-topic">{primaryTag(featured)}</span>
+                <h3>{featured.title}</h3>
+                {featured.excerpt ? <p>{featured.excerpt}</p> : null}
+                <div class="article-meta">
+                  <time datetime={featured.published_at ?? undefined}>{fmtDate(featured.published_at)}</time>
+                  <span>{readingLabel(featured)}</span>
+                </div>
+              </div>
+            </a>
+          )}
+
+          <header class="list-heading">
+            <div>
+              <p class="eyebrow">Journal List</p>
+              <h2>文章列表</h2>
+            </div>
+            <p>共 {articles.length} 篇文章 · 第 {currentPage} / {pageCount} 頁</p>
+          </header>
+
+          <div class="article-grid">
+            {visibleArticles.map((article) => (
+              <a class="article-card" href={`/blog/${article.slug}`}>
+                <div class:list={["card-media", !cardImage(article) && "card-media--placeholder"]}>
+                  {cardImage(article) ? (
+                    <img
+                      src={cardImage(article)!.src}
+                      width={cardImage(article)!.width}
+                      height={cardImage(article)!.height}
+                      alt={article.title}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <span>{blog.eyebrow}</span>
+                  )}
+                </div>
+                <div class="card-body">
+                  <div class="card-kicker">
+                    <span>{primaryTag(article)}</span>
+                    <span>{readingLabel(article)}</span>
+                  </div>
+                  <h3 class="card-title">{article.title}</h3>
+                  {article.excerpt ? <p class="card-excerpt">{article.excerpt}</p> : null}
+                  <div class="card-footer">
+                    <time datetime={article.published_at ?? undefined}>{fmtDate(article.published_at)}</time>
+                    <span>閱讀文章</span>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+
+          <nav class="pagination" aria-label="文章分頁">
+            {previousPage ? (
+              <a class="page-link page-link--wide" href={pageHref(previousPage)}>上一頁</a>
+            ) : (
+              <span class="page-link page-link--wide is-disabled">上一頁</span>
+            )}
+            <div class="page-numbers">
+              {pageNumbers.map((page) => (
+                <a class:list={["page-link", page === currentPage && "is-current"]} href={pageHref(page)} aria-current={page === currentPage ? "page" : undefined}>
+                  {page}
+                </a>
+              ))}
+            </div>
+            {nextPage ? (
+              <a class="page-link page-link--wide" href={pageHref(nextPage)}>下一頁</a>
+            ) : (
+              <span class="page-link page-link--wide is-disabled">下一頁</span>
+            )}
+          </nav>
+        </div>
+
+        <aside class="blog-sidebar" aria-label="文章側欄">
+          <section class="sidebar-panel">
+            <h2>熱門主題</h2>
+            <div class="topic-list">
+              {topicPills.slice(1, 6).map((topic) => <a href="#article-list">{topic}</a>)}
+            </div>
+          </section>
+
+          <section class="sidebar-panel">
+            <h2>熱門文章</h2>
+            <div class="popular-list">
+              {popularArticles.map((article) => (
+                <a href={`/blog/${article.slug}`}>
+                  <div class:list={["popular-thumb", !cardImage(article) && "popular-thumb--placeholder"]}>
+                    {cardImage(article) ? (
+                      <img
+                        src={cardImage(article)!.src}
+                        width={cardImage(article)!.width}
+                        height={cardImage(article)!.height}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <span aria-hidden="true">—</span>
+                    )}
+                  </div>
+                  <span>{article.title}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <section class="sidebar-note">
+            <p>{blog.metaDescription}</p>
+            <a href="/products">瀏覽商品</a>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+  .blog-page {
+    background: var(--color-soft);
+  }
+
+  .blog-hero {
+    background: transparent;
+    padding-block: clamp(44px, 5vw, 72px);
+    text-align: center;
+  }
+
+  .hero-copy {
+    max-width: 650px;
+    margin-inline: auto;
+  }
+
+  .blog-list-section {
+    background: transparent;
+    padding-top: clamp(8px, 2vw, 24px);
+    padding-bottom: clamp(72px, 7vw, 112px);
+  }
+
+  .blog-shell {
+    display: grid;
+    gap: 22px;
+  }
+
+  .topic-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .topic-pill,
+  .page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-muted);
+    font-size: 13px;
+    letter-spacing: var(--meta-letter-spacing);
+  }
+
+  .topic-pill {
+    padding: 7px 15px;
+  }
+
+  .topic-pill.is-active,
+  .page-link.is-current {
+    border-color: var(--color-cta);
+    background: var(--color-cta);
+    color: var(--color-cta-text);
+  }
+
+  .blog-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 286px;
+    gap: clamp(24px, 3vw, 36px);
+    align-items: start;
+  }
+
+  .blog-main {
+    display: grid;
+    gap: 28px;
+  }
+
+  .section-heading,
+  .list-heading {
+    gap: 18px;
+  }
+
+  .section-heading {
+    display: grid;
+    align-items: start;
+  }
+
+  .list-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 8px;
+  }
+
+  .section-heading h2,
+  .list-heading h2,
+  .sidebar-panel h2 {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: clamp(24px, 2.2vw, 32px);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--title-letter-spacing);
+    line-height: 1.3;
+  }
+
+  .section-heading .eyebrow,
+  .list-heading .eyebrow {
+    margin: 0 0 8px;
+  }
+
+  .list-heading > p {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 13px;
+    letter-spacing: var(--meta-letter-spacing);
+    white-space: nowrap;
+  }
+
+  .featured-card,
+  .article-card,
+  .sidebar-panel,
+  .sidebar-note {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .featured-card {
+    display: grid;
+    grid-template-columns: minmax(220px, 36%) minmax(0, 1fr);
+    gap: clamp(22px, 2.8vw, 34px);
+    padding: 18px;
+    overflow: hidden;
+  }
+
+  .featured-media,
+  .card-media,
+  .popular-thumb {
+    background: var(--thumb-bg);
+    overflow: hidden;
+  }
+
+  .featured-media {
+    min-height: 236px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .featured-media img,
+  .card-media img,
+  .popular-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .featured-media span,
+  .card-media--placeholder span {
+    color: var(--text-faint);
+    font-size: 15px;
+    letter-spacing: var(--label-letter-spacing);
+  }
+
+  .featured-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+    padding: 8px 10px 8px 0;
+  }
+
+  .article-topic {
+    color: var(--color-muted);
+    font-size: 13px;
+    letter-spacing: var(--meta-letter-spacing);
+  }
+
+  .featured-body h3 {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: clamp(24px, 2vw, 30px);
+    font-weight: var(--title-weight);
+    line-height: 1.45;
+  }
+
+  .featured-body p {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 15px;
+    line-height: 1.85;
+  }
+
+  .article-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: var(--color-muted);
+    font-size: 13px;
+    letter-spacing: var(--meta-letter-spacing);
+  }
+
+  .article-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(18px, 2vw, 24px);
+  }
+
+  .article-card {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+    overflow: hidden;
+    color: inherit;
+  }
+
+  .card-media {
+    aspect-ratio: 4 / 3;
+  }
+
+  .card-media--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .card-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 11px;
+    padding: 18px 18px 20px;
+  }
+
+  .card-kicker,
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--color-muted);
+    font-size: 12px;
+    letter-spacing: var(--meta-letter-spacing);
+  }
+
+  .card-kicker span:first-child {
+    max-width: 58%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-title {
+    margin: 0;
+    color: var(--color-ink);
+    font-size: 17px;
+    font-weight: var(--title-weight);
+    line-height: 1.6;
+  }
+
+  .card-excerpt {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 14px;
+    line-height: 1.8;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-footer {
+    margin-top: auto;
+    padding-top: 8px;
+  }
+
+  .card-footer span {
+    color: var(--color-ink);
+  }
+
+  .blog-sidebar {
+    position: sticky;
+    top: 96px;
+    display: grid;
+    gap: 18px;
+  }
+
+  .sidebar-panel,
+  .sidebar-note {
+    padding: 20px;
+  }
+
+  .sidebar-panel h2 {
+    margin-bottom: 14px;
+    font-size: 22px;
+  }
+
+  .topic-list,
+  .popular-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .topic-list a {
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--color-soft);
+    color: var(--color-text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .popular-list a {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+  }
+
+  .popular-thumb {
+    width: 48px;
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-muted);
+    font-family: var(--font-serif);
+  }
+
+  .popular-list span {
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: var(--body-weight);
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .sidebar-note {
+    display: grid;
+    gap: 16px;
+  }
+
+  .sidebar-note p {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .sidebar-note a {
+    display: inline-flex;
+    justify-content: center;
+    padding: 11px 18px;
+    background: var(--color-cta);
+    color: var(--color-cta-text);
+    font-size: 14px;
+    letter-spacing: var(--button-letter-spacing);
+  }
+
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding-top: 14px;
+  }
+
+  .page-numbers {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .page-link {
+    min-width: 36px;
+    padding: 7px 12px;
+  }
+
+  .page-link--wide {
+    min-width: 78px;
+  }
+
+  .page-link.is-disabled {
+    cursor: default;
+    opacity: 0.42;
+  }
+
+  @media (max-width: 1100px) {
+    .blog-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .blog-sidebar {
+      position: static;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sidebar-note {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .featured-card {
+      grid-template-columns: 1fr;
+    }
+
+    .featured-body {
+      padding: 0 2px 4px;
+    }
+
+    .article-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .section-heading,
+    .list-heading {
+      display: grid;
+    }
+
+    .list-heading > p {
+      white-space: normal;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .topic-pills {
+      flex-wrap: nowrap;
+      margin-inline: calc(var(--mobile-padding) * -1);
+      overflow-x: auto;
+      padding-inline: var(--mobile-padding);
+      scrollbar-width: none;
+    }
+
+    .topic-pills::-webkit-scrollbar {
+      display: none;
+    }
+
+    .topic-pill {
+      flex: 0 0 auto;
+    }
+
+    .article-grid,
+    .blog-sidebar {
+      grid-template-columns: 1fr;
+    }
+
+    .featured-media {
+      min-height: 210px;
+    }
+
+    .pagination {
+      justify-content: stretch;
+    }
+
+    .page-numbers {
+      order: 3;
+      width: 100%;
+    }
+
+    .page-link--wide {
+      flex: 1;
+    }
+  }
+</style>

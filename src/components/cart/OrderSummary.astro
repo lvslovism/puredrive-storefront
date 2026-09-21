@@ -1,0 +1,132 @@
+---
+import { formatMoney } from "../../../brand/identity";
+import Button from "../common/Button.astro";
+
+interface SummaryItem {
+  name: string;
+  quantity: number;
+  subtotal: number;
+}
+
+interface Props {
+  items: SummaryItem[];
+  shippingFee?: number;
+  discount?: number;
+  title?: string;
+}
+
+const {
+  items,
+  shippingFee = 0,
+  discount = 0,
+  title = "訂單摘要",
+} = Astro.props;
+
+const itemTotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+const grandTotal = itemTotal + shippingFee - discount;
+---
+
+<aside class="order-summary surface" data-cart-summary>
+  <h2>{title}</h2>
+
+  <div class="summary-list" data-summary-list>
+    {items.map((item) => (
+      <div class="line-item">
+        <span>{item.name} x {item.quantity}</span>
+        <strong>{formatMoney(item.subtotal)}</strong>
+      </div>
+    ))}
+  </div>
+
+  <div class="totals">
+    <div><span>商品小計</span><strong data-field="items_total">{formatMoney(itemTotal)}</strong></div>
+    <div><span>運費</span><strong data-field="shipping">{formatMoney(shippingFee)}</strong></div>
+    <div><span>折扣</span><strong data-field="discount">- {formatMoney(discount)}</strong></div>
+  </div>
+
+  <div class="grand-total">
+    <span>合計</span>
+    <strong data-field="grand">{formatMoney(grandTotal)}</strong>
+  </div>
+
+  <Button href="/checkout">前往結帳</Button>
+
+  <template data-summary-line>
+    <div class="line-item">
+      <span data-field="line-name"></span>
+      <strong data-field="line-subtotal"></strong>
+    </div>
+  </template>
+</aside>
+
+<style>
+  .order-summary {
+    display: grid;
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .order-summary h2,
+  .grand-total strong {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--card-title-letter-spacing);
+    line-height: var(--card-title-line-height);
+  }
+
+  .summary-list,
+  .totals {
+    display: grid;
+    gap: 12px;
+  }
+
+  .line-item,
+  .totals div,
+  .grand-total {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .line-item span,
+  .totals span,
+  .totals strong,
+  .grand-total span {
+    color: var(--color-text);
+    font-size: var(--description-text-size);
+    font-weight: var(--body-weight);
+    letter-spacing: var(--description-letter-spacing);
+    line-height: 1.8;
+  }
+
+  /* Line-item amount stays on one line; the product name flexes and wraps. */
+  .summary-list .line-item span {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .summary-list .line-item strong {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .totals {
+    padding-top: 14px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .grand-total {
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* Checkout entry sits inside the summary box, full width below the total. */
+  .order-summary :global(.button) {
+    width: 100%;
+    min-height: 50px;
+  }
+</style>

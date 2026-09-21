@@ -1,0 +1,111 @@
+---
+/**
+ * Login: the member card, on a page of its own.
+ *
+ * There is one way in — LINE — so this is not a form, it is a single decision
+ * with the reassurance a customer needs to make it: what the shop takes, what
+ * it does not, and what continuing agrees to. The card itself — the brand panel
+ * beside the button — is LoginCard, shared with the member wall on /checkout so
+ * the two cannot drift into different screens.
+ *
+ * The two policy links run through the route filter, so a shop that has not
+ * published one of them shows the other rather than a dead link.
+ */
+import BaseLayout from "../layouts/BaseLayout.astro";
+import LoginCard from "../components/common/LoginCard.astro";
+import { member } from "../../brand/copy";
+import { isVisibleHref } from "../lib/features";
+
+const policies = [
+  { label: "使用條款", href: "/terms" },
+  { label: "隱私權政策", href: "/privacy" },
+].filter((p) => isVisibleHref(p.href));
+---
+
+<BaseLayout title="會員登入" description={member.loginMetaDescription}>
+  <section class="section login-page" data-section="login">
+    <div class="container">
+      <nav class="login-crumb" aria-label="麵包屑">
+        <a href="/">首頁</a>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">{member.breadcrumbLabel}</span>
+      </nav>
+
+      <LoginCard
+        title={member.loginTitle}
+        lead={member.loginLead}
+        loginHook="data-line-login"
+      >
+        <p class="login-privacy">{member.loginPrivacy}</p>
+
+        <p class="login-consent">
+          {member.loginConsent}
+          {policies.map((policy, index) => (
+            <>
+              {index > 0 && <span aria-hidden="true">與</span>}
+              <a href={policy.href}>{policy.label}</a>
+            </>
+          ))}
+        </p>
+      </LoginCard>
+    </div>
+  </section>
+
+  <script>
+    import { startLogin, isLoggedIn } from "../scripts/auth";
+    const btn = document.querySelector("[data-line-login]");
+    // Already a member → straight to the member area; this page has nothing to
+    // offer someone who is already through it.
+    if (isLoggedIn()) window.location.replace("/account");
+    btn?.addEventListener("click", () => startLogin("/account"));
+  </script>
+</BaseLayout>
+
+<style>
+  /* Its own ground, like the product page. Sharing --color-soft tied the one
+     screen that is nothing but a card on a field to the hero, the trust strip
+     and a dozen small fills; a shop wanting this page calmer had to move all of
+     them. The card keeps a border, so the two may sit at the same value. */
+  .login-page {
+    background: var(--color-login-bg);
+  }
+
+  .login-crumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+    color: var(--text-muted);
+    font-size: var(--meta-text-size);
+  }
+
+  .login-crumb [aria-current="page"] {
+    color: var(--text-secondary);
+  }
+
+  /* Slotted into LoginCard's panel, so these are styled from the page that
+     supplies them — the panel decides the geometry, the surface decides what
+     it owes the customer underneath the button. */
+  .login-privacy {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--meta-text-size);
+    line-height: 1.6;
+  }
+
+  .login-consent {
+    width: 100%;
+    max-width: 420px;
+    margin: var(--space-3) 0 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    color: var(--text-muted);
+    font-size: var(--meta-text-size);
+    line-height: 1.7;
+  }
+
+  .login-consent a {
+    color: var(--text-secondary);
+    text-decoration: underline;
+  }
+</style>

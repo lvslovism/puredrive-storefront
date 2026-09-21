@@ -1,0 +1,72 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { storageKey, CONFIG_GLOBAL } from "../../../brand/identity";
+import { referral } from "../../../brand/copy";
+
+// 推薦連結落地頁（/r/<code>）。
+//
+// 這是純 SSG 站（無 adapter），做不到動態 route：任意 /r/XXXX 靠 _redirects 的
+// `/r/*  /r/  200` rewrite 打到這一頁，原始 path 保留在 location.pathname 供
+// client 解析 code。Client-side：產/讀 32-hex visitor token → POST
+// /v1/storefront/aff/session（帶公開金鑰）→ 立刻導回首頁。session 有效性、
+// 歸因窗與自推阻擋全在 server。
+//
+// 這頁只在 brand/commerce.ts 的 affiliate 旗標開啟時才會被 astro.config 注入。
+const VISITOR_TOKEN_KEY = storageKey("affiliate_visitor");
+---
+
+<BaseLayout title={referral.metaTitle} description={referral.metaDescription}>
+  <section class="referral-landing">
+    <p>{referral.landingLine}</p>
+  </section>
+
+  <script define:vars={{ VISITOR_TOKEN_KEY, CONFIG_GLOBAL }}>
+    (async () => {
+      try {
+        const m = location.pathname.match(/^\/r\/([A-Za-z0-9]{4,16})\/?$/);
+        const code = (m?.[1] ?? new URLSearchParams(location.search).get("code") ?? "")
+          .toUpperCase();
+        if (!/^[A-Z2-9]{8}$/.test(code)) return;
+
+        let token = null;
+        try {
+          token = localStorage.getItem(VISITOR_TOKEN_KEY);
+          if (!token || !/^[0-9a-f]{32}$/.test(token)) {
+            const bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+            localStorage.setItem(VISITOR_TOKEN_KEY, token);
+          }
+        } catch {
+          return; // storage 不可用 → 無法歸因，直接放行進站
+        }
+
+        const cfg = window[CONFIG_GLOBAL] || {};
+        if (!cfg.apiBase || !cfg.pk) return;
+        await fetch(`${cfg.apiBase}/v1/storefront/aff/session`, {
+          method: "POST",
+          keepalive: true,
+          headers: { "content-type": "application/json", "x-api-key": cfg.pk },
+          body: JSON.stringify({ visitor_token: token, code }),
+        }).catch(() => undefined);
+      } finally {
+        location.replace("/");
+      }
+    })();
+  </script>
+</BaseLayout>
+
+<style>
+  .referral-landing {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 96px 24px;
+    text-align: center;
+  }
+
+  .referral-landing p {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 15px;
+  }
+</style>

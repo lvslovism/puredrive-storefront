@@ -1,0 +1,286 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Button from "../components/common/Button.astro";
+import { faq } from "../../brand/copy";
+import { flags } from "../lib/features";
+import { getMerchant } from "../lib/commerce";
+import {
+  derivePaymentFaqAnswer,
+  deriveShippingFaqAnswer,
+} from "../lib/content-derivation.mjs";
+
+// Content derivation: the payment / shipping answers are PROJECTED from the same
+// merchant config the checkout page renders from — no frozen list lives in
+// brand/copy.ts. Items tagged `derive` get their answer computed here; everything
+// downstream (render + JSON-LD) uses these resolved items, so the schema can
+// never disagree with the visible answer.
+const merchant = await getMerchant();
+// Derived LAZILY — see the same change in HomeLanding.astro. Deriving both up
+// front makes a merchant with no payment or shipping methods unbuildable even
+// when no question asks for either, and `flags.commerce` made exactly that
+// merchant a legitimate one.
+// A derive that CANNOT succeed on this shop's shape removes its own question
+// rather than stopping the build: a showcase shop has no payment methods and no
+// shipping methods, and never will. `flags.commerce` is the fact that decides
+// it. See emptyIsAFault in content-derivation.mjs.
+const DERIVE_ANSWER: Record<string, () => string | null> = {
+  payment: () => derivePaymentFaqAnswer(merchant?.payment_config, { sells: flags.commerce }),
+  shipping: () => deriveShippingFaqAnswer(merchant?.shipping_config, { sells: flags.commerce }),
+};
+const resolvedFaqItems = faq.items.flatMap((item) => {
+  if (!item.derive) return [item];
+  const derived = DERIVE_ANSWER[item.derive]?.();
+  // An unrecognised `derive` key keeps the authored answer, as it always has.
+  if (derived === undefined) return [item];
+  if (derived === null) return [];
+  return [{ ...item, answer: derived }];
+});
+
+// Group questions by category, preserving the source order of both the
+// categories and the questions within them (Map insertion order).
+const groups = new Map<string, typeof resolvedFaqItems>();
+for (const item of resolvedFaqItems) {
+  const bucket = groups.get(item.category) ?? [];
+  bucket.push(item);
+  groups.set(item.category, bucket);
+}
+const grouped = [...groups.entries()];
+
+// SEO: FAQPage JSON-LD — one Question/acceptedAnswer per FAQ, flat across all
+// categories (schema.org has no category grouping). Built from the SAME
+// resolvedFaqItems the page renders, derived answers included.
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: resolvedFaqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: { "@type": "Answer", text: item.answer },
+  })),
+};
+
+// CSS-only tabs: every panel is rendered into the HTML and stays in the DOM
+// (crawlers and the schema read every question); the radio inputs below flip
+// which panel is visible via :checked ~ sibling selectors. The number of
+// categories is data-driven, so the per-index rules are generated here and
+// injected as an inline (global) <style> — the ids are unique, so global scope
+// is safe.
+const tabCss = grouped
+  .map(
+    (_, i) => `
+#faq-tab-${i}:checked ~ .faq-panels .faq-panel[data-panel="${i}"] { display: grid; }
+#faq-tab-${i}:checked ~ .faq-tablist label[for="faq-tab-${i}"] {
+  color: var(--color-cta-text);
+  background: var(--color-cta);
+  border-color: var(--color-cta);
+}
+#faq-tab-${i}:focus-visible ~ .faq-tablist label[for="faq-tab-${i}"] {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}`,
+  )
+  .join("\n");
+---
+
+<BaseLayout title={faq.metaTitle} description={faq.metaDescription} jsonLd={faqJsonLd}>
+  <section class="section faq-page" data-section="faq_list">
+    <div class="container faq-shell">
+      <header class="faq-header">
+        <p class="eyebrow">{faq.hero.eyebrow}</p>
+        <h1 class="page-title">{faq.hero.title}</h1>
+        <p class="lead">{faq.hero.lead}</p>
+      </header>
+
+      <div class="faq-tabs">
+        {/* Radio inputs drive the CSS-only tab switching. First tab checked by default. */}
+        {grouped.map(([category], i) => (
+          <input
+            type="radio"
+            name="faq-tab"
+            id={`faq-tab-${i}`}
+            class="faq-tab-input"
+            checked={i === 0}
+            aria-label={category}
+          />
+        ))}
+
+        <div class="faq-tablist" role="tablist" aria-label="常見問題分類">
+          {grouped.map(([category], i) => (
+            <label for={`faq-tab-${i}`} class="faq-tab">{category}</label>
+          ))}
+        </div>
+
+        <div class="faq-panels">
+          {grouped.map(([category, items], i) => (
+            <section class="faq-panel" data-panel={i} aria-label={category}>
+              {items.map((item) => (
+                <details class="faq-item">
+                  <summary class="faq-question">
+                    <span>{item.question}</span>
+                    <span class="faq-icon" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>{item.answer}</p>
+                  </div>
+                </details>
+              ))}
+            </section>
+          ))}
+        </div>
+      </div>
+
+      <div class="faq-cta">
+        <p class="faq-cta-copy">{faq.ctaCopy}</p>
+        <Button href={faq.ctaHref}>{faq.ctaLabel}</Button>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style is:inline set:html={tabCss}></style>
+
+<style>
+  .faq-page {
+    background: var(--color-soft);
+  }
+
+  .faq-shell {
+    max-width: 820px;
+  }
+
+  .faq-header {
+    text-align: center;
+    margin-bottom: clamp(36px, 4vw, 52px);
+  }
+
+  .faq-header .lead {
+    margin: 18px auto 0;
+    max-width: 620px;
+  }
+
+  /* Visually hide the radio inputs but keep them operable (keyboard/AT). */
+  .faq-tab-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .faq-tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: clamp(24px, 3vw, 36px);
+  }
+
+  .faq-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-muted);
+    font-size: 15px;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+
+  .faq-panels {
+    display: grid;
+  }
+
+  /* All panels are in the DOM; hidden ones are toggled visible by the generated
+     #faq-tab-N:checked rules in the inline <style> above. */
+  .faq-panel {
+    display: none;
+    gap: 12px;
+    grid-auto-rows: min-content;
+  }
+
+  .faq-item {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .faq-question {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: clamp(16px, 2vw, 22px) clamp(18px, 2.4vw, 28px);
+    color: var(--color-ink);
+    font-size: var(--body-text-size);
+    font-weight: var(--title-weight);
+    line-height: 1.6;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .faq-question::-webkit-details-marker {
+    display: none;
+  }
+
+  /* The +/− affordance. Open/closed is the only thing telling a reader whether
+     there is more to read, so the glyph is structural, not ornament. */
+  .faq-icon {
+    position: relative;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+  }
+
+  .faq-icon::before,
+  .faq-icon::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 1.5px;
+    background: var(--color-muted);
+    transform: translate(-50%, -50%);
+  }
+
+  .faq-icon::after {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+
+  .faq-item[open] .faq-icon::after {
+    opacity: 0;
+  }
+
+  .faq-answer {
+    padding: 0 clamp(18px, 2.4vw, 28px) clamp(18px, 2.2vw, 24px);
+    color: var(--color-text);
+    font-size: 15px;
+    line-height: 1.9;
+  }
+
+  .faq-answer p {
+    margin: 0;
+  }
+
+  .faq-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin-top: clamp(40px, 5vw, 64px);
+    text-align: center;
+  }
+
+  .faq-cta-copy {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 15px;
+  }
+</style>

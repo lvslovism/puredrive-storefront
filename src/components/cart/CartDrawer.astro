@@ -1,0 +1,327 @@
+---
+/**
+ * The cart, as a drawer.
+ *
+ * A one-page shop has no /cart route to send anyone to, and bouncing a customer
+ * off the page they were buying from to a page whose only job is a list was
+ * always the weaker move. So the cart slides in over the page and they carry on
+ * where they were.
+ *
+ * Rendered once, by BaseLayout, so every page has it — including /checkout,
+ * whose "返回購物車" opens it rather than navigating.
+ *
+ * Everything here is markup and state. The mutations go through
+ * src/scripts/cart.ts like every other surface, so the in-flight cart-creation
+ * memo and the mutation queue apply unchanged: the drawer cannot create a second
+ * cart or fire an overlapping line write.
+ */
+import { formatMoney } from "../../../brand/identity";
+import { cart as cartCopy } from "../../../brand/copy";
+---
+
+{/* `hidden` is the closed state and is authoritative: the panel carries no
+    author `display` rule that could beat it, unlike .cvs-box elsewhere. */}
+<div class="cart-drawer" data-cart-drawer hidden>
+  <div class="cart-scrim" data-cart-close aria-hidden="true"></div>
+
+  <aside
+    class="cart-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-label="購物車"
+    data-cart-panel
+  >
+    <header class="cart-head">
+      <h2>購物車（<span data-cart-title-count>0</span>）</h2>
+      <button type="button" class="cart-x" data-cart-close aria-label="關閉購物車">×</button>
+    </header>
+
+    <p class="cart-state" data-cart-loading>讀取中…</p>
+
+    <div class="cart-state cart-error" data-cart-error hidden>
+      <p class="cart-empty-title">加入購物車失敗</p>
+      <p class="cart-empty-lead">請關閉後再試一次，或重新整理頁面。</p>
+      <button type="button" class="cart-continue" data-cart-close>關閉</button>
+    </div>
+
+    <div class="cart-state" data-cart-empty hidden>
+      <p class="cart-empty-title">{cartCopy.emptyTitle}</p>
+      <p class="cart-empty-lead">{cartCopy.emptyLead}</p>
+      <button type="button" class="cart-continue" data-cart-close>{cartCopy.emptyCtaLabel}</button>
+    </div>
+
+    <div class="cart-body" data-cart-items hidden>
+      <ul class="cart-lines" data-cart-list></ul>
+    </div>
+
+    <footer class="cart-foot" data-cart-foot hidden>
+      <div class="cart-total">
+        <span>商品小計</span>
+        <strong data-cart-subtotal>{formatMoney(0)}</strong>
+      </div>
+      <p class="cart-foot-note">運費與折扣於結帳頁計算。</p>
+      <button type="button" class="cart-checkout" data-cart-checkout>前往結帳</button>
+    </footer>
+  </aside>
+</div>
+
+<template id="cart-drawer-row">
+  <li class="cart-line" data-cart-row>
+    <img data-field="image" alt="" width="72" height="72" loading="lazy" decoding="async" />
+    <div class="cart-line-main">
+      <p class="cart-line-name" data-field="name"></p>
+      <p class="cart-line-unit" data-field="unit_price"></p>
+      <div class="cart-line-controls">
+        <button type="button" class="cart-step" data-action="dec" aria-label="減少數量">−</button>
+        <span class="cart-qty" data-field="quantity">1</span>
+        <button type="button" class="cart-step" data-action="inc" aria-label="增加數量">+</button>
+        <button type="button" class="cart-remove" data-action="remove">移除</button>
+      </div>
+    </div>
+    <p class="cart-line-subtotal" data-field="line_subtotal"></p>
+  </li>
+</template>
+
+<style>
+  .cart-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+  }
+
+  .cart-scrim {
+    position: absolute;
+    inset: 0;
+    background: var(--color-ink);
+    opacity: 0.32;
+  }
+
+  .cart-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    width: min(420px, 100%);
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-border);
+  }
+
+  .cart-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 20px var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .cart-head h2 {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: 0.06em;
+    line-height: var(--card-title-line-height);
+  }
+
+  .cart-x {
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    font-size: 26px;
+    line-height: 1;
+    padding: 4px 6px;
+    cursor: pointer;
+  }
+
+  .cart-state {
+    margin: 0;
+    padding: var(--space-6) var(--space-4);
+    color: var(--text-muted);
+    font-size: var(--description-text-size);
+    text-align: center;
+  }
+
+  .cart-empty-title {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+  }
+
+  .cart-empty-lead {
+    margin: var(--space-2) 0 var(--space-4);
+  }
+
+  .cart-continue {
+    min-height: 42px;
+    padding: 11px 24px;
+    border: 1px solid var(--color-cta);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-ink);
+    font: inherit;
+    font-size: var(--button-text-size);
+    letter-spacing: var(--button-letter-spacing);
+    cursor: pointer;
+  }
+
+  /* A second add while the panel is already open keeps its contents and just
+     dims them — replacing a list the customer is reading with a spinner is a
+     worse answer than showing it a moment out of date. */
+  .cart-body[aria-busy="true"] {
+    opacity: 0.5;
+  }
+
+  .cart-error .cart-empty-title {
+    color: var(--color-danger);
+  }
+
+  .cart-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .cart-lines {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cart-line {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .cart-line img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    background: var(--thumb-bg);
+  }
+
+  .cart-line-main {
+    min-width: 0;
+  }
+
+  .cart-line-name {
+    margin: 0;
+    color: var(--color-ink);
+    font-size: var(--description-text-size);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .cart-line-unit {
+    margin: 4px 0 10px;
+    color: var(--text-muted);
+    font-size: var(--meta-text-size);
+    line-height: 1.5;
+  }
+
+  .cart-line-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .cart-step {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .cart-step:disabled,
+  .cart-remove:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .cart-qty {
+    min-width: 2ch;
+    text-align: center;
+    color: var(--color-ink);
+    font-size: var(--description-text-size);
+  }
+
+  .cart-remove {
+    margin-left: var(--space-2);
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--meta-text-size);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .cart-line-subtotal {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--description-text-size);
+    white-space: nowrap;
+  }
+
+  .cart-foot {
+    padding: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-soft);
+  }
+
+  .cart-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    color: var(--text-secondary);
+    font-size: var(--description-text-size);
+  }
+
+  .cart-total strong {
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: var(--title-weight);
+  }
+
+  .cart-foot-note {
+    margin: 6px 0 var(--space-3);
+    color: var(--text-muted);
+    font-size: var(--meta-text-size);
+  }
+
+  .cart-checkout {
+    display: block;
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid var(--color-cta);
+    border-radius: var(--radius-sm);
+    background: var(--color-cta);
+    color: var(--color-cta-text);
+    font: inherit;
+    font-size: var(--button-text-size);
+    letter-spacing: var(--button-letter-spacing);
+    cursor: pointer;
+  }
+
+  @media (max-width: 480px) {
+    .cart-panel {
+      width: 100%;
+    }
+  }
+</style>

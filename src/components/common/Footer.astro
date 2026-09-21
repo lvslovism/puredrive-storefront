@@ -1,0 +1,346 @@
+---
+/**
+ * The footer: a brand column, the link columns a shop declares, the company
+ * block, and a bottom bar carrying the copyright and the legal links.
+ *
+ * It is NOT "the dark footer", which is what this line used to say and what the
+ * file used to assume. `--color-footer-bg` is whatever a shop sets, and one
+ * storefront here ships a cream one. Everything that reads as a colour decision
+ * in this file reads it from a token on the `footer` ground, so a pale footer is
+ * a palette, not a fork.
+ *
+ * Every link list runs through `visibleLinks`, so a column whose routes a shop
+ * has flagged off empties itself and then disappears rather than shipping dead
+ * links — the same rule the header and the 404 quick links follow.
+ *
+ * The 聯絡資訊 block and the payment marks are config-driven: they come from the
+ * merchant bundle, so editing the merchant record changes the next build with
+ * no frozen second copy in the front end. getMerchant is memoized per build, so
+ * this shares the bundle every other page fetched.
+ */
+import { identity, copyrightLine } from "../../../brand/identity";
+import { footerGroups, footerLegalLinks } from "../../../brand/copy";
+import { visibleLinks, socialFor } from "../../lib/features";
+import { getMerchant } from "../../lib/commerce";
+import {
+  deriveFooterPaymentBadges,
+  deriveLegalContact,
+} from "../../lib/content-derivation.mjs";
+import { sizeAttrs } from "../../lib/image-size";
+
+const merchant = await getMerchant();
+const paymentBadges = deriveFooterPaymentBadges(
+  merchant?.storefront_config,
+  identity.assets.paymentBadges,
+);
+const legalContact = deriveLegalContact(merchant?.storefront_config);
+const groups = footerGroups
+  .map((group) => ({ ...group, links: visibleLinks(group.links) }))
+  .filter((group) => group.links.length > 0);
+const legalLinks = visibleLinks(footerLegalLinks);
+const copyright = copyrightLine(new Date().getFullYear());
+/* The channel list this surface shows. An entry that declares no `surfaces`
+   appears here and on the rail, which is what every entry meant before the
+   field existed — see SocialLink.surfaces in brand/identity.ts. */
+const social = socialFor("footer", identity.social);
+
+/**
+ * The nav columns take whatever `footerGroups` puts in `href`, and that list is
+ * meant for in-site routes — so a bare anchor is right for the normal case.
+ * Nothing stopped a shop putting an external URL there, though, and when one
+ * did it navigated away in the same tab with no `rel`: one shop shipped a
+ * LINE 客服 entry that way across thirteen pages, the only one of some 340 LINE
+ * anchors in the family that did not open a new tab.
+ *
+ * So the columns get the same http(s)-guarded pair the social row, the header
+ * and the product page already use. An in-site route yields no attributes at
+ * all, which is what keeps every existing storefront's markup unchanged.
+ *
+ * ⚠️ THE TWO ATTRIBUTES ARE WRITTEN OUT RATHER THAN SPREAD, and that is not a
+ * style preference. `{...external(link.href)}` reads better and is not
+ * equivalent: a spread makes the attribute set unknowable at compile time, so
+ * Astro also stamps the scope CLASS onto the element beside the
+ * `data-astro-cid-*` it already carries. Measured on one storefront: every
+ * anchor in every footer column and in the bottom bar gained a `class="astro-…"`
+ * it did not have — 322 bytes per page, on every page, to add nothing. An
+ * attribute whose value is `undefined` is not rendered at all, so this form
+ * emits the same bytes an internal link emitted before.
+ */
+const isExternal = (href: string) => /^https?:/.test(href);
+---
+
+<footer class="site-footer" data-section="site-footer">
+  <div class="footer-grid container" style={`--footer-cols:${groups.length + 1}`}>
+    <section class="footer-brand">
+      <a class="footer-wordmark" href="/" aria-label={identity.name}>
+        <span class="footer-name">{identity.logoText}</span>
+        {identity.logoSubtext && <span class="footer-sub">{identity.logoSubtext}</span>}
+      </a>
+      <p class="footer-blurb">{identity.footerBlurb}</p>
+
+      {social.length > 0 && (
+        <ul class="footer-social">
+          {social.map((link) => (
+            <li>
+              <a href={link.href} target="_blank" rel="noopener noreferrer" aria-label={link.label}>
+                {/* Masked, not <img>: the file supplies the SHAPE and a token
+                    supplies the COLOUR, the same rule the 404 quick links and
+                    the assurance glyphs follow (PITFALLS #5). The <img> version
+                    could only be recoloured by inverting it, which is a
+                    statement about the ground it happens to be on. */}
+                <span class="footer-mark" style={`--glyph: url('${link.icon}')`} aria-hidden="true"></span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+
+    {groups.map((group) => (
+      <section class="footer-col">
+        <h3>{group.title}</h3>
+        <ul>
+          {group.links.map((link) => (
+            <li><a href={link.href} target={isExternal(link.href) ? "_blank" : undefined} rel={isExternal(link.href) ? "noopener noreferrer" : undefined}>{link.label}</a></li>
+          ))}
+        </ul>
+      </section>
+    ))}
+
+    <section class="footer-col">
+      <h3>聯絡我們</h3>
+      {/* Three lines: who to call, where to write, and who you are dealing
+          with. The FULL statutory disclosure — legal entity, tax id,
+          registered address and service hours — is on /terms, which the bottom
+          bar links from every page. It did not shrink, it MOVED: a footer is
+          read to find the service number, and six lines of registry detail on
+          every page bury the one line anybody came for.
+
+          Both blocks derive from the same storefront_config.contact, so the
+          page that carries the disclosure and the page that carries the
+          summary cannot disagree. */}
+      <ul class="footer-contact">
+        <li>客服專線：{legalContact.phone}</li>
+        <li>電子郵件：{identity.contact.email}</li>
+        <li>公司名稱：{legalContact.legalEntity}</li>
+      </ul>
+      {paymentBadges.length > 0 && (
+        <ul class="footer-pay" aria-label="金流服務">
+          {paymentBadges.map((badge) => (
+            <li>
+              <img src={badge.src} alt={badge.alt} loading="lazy" decoding="async" {...sizeAttrs(badge.src)} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  </div>
+
+  <div class="footer-bar">
+    <div class="container footer-bar-inner">
+      <p>{copyright}</p>
+      {legalLinks.length > 0 && (
+        <ul>
+          {legalLinks.map((link) => (
+            <li><a href={link.href} target={isExternal(link.href) ? "_blank" : undefined} rel={isExternal(link.href) ? "noopener noreferrer" : undefined}>{link.label}</a></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    background: var(--color-footer-bg);
+    color: var(--color-footer-text);
+  }
+
+  .footer-grid {
+    display: grid;
+    /* One wide brand column, then one equal column per section that survived
+       the link filter — counted in the frontmatter, because CSS cannot see how
+       many of them a shop declared. */
+    grid-template-columns: minmax(0, 1.5fr) repeat(var(--footer-cols), minmax(0, 1fr));
+    gap: clamp(24px, 3vw, 52px);
+    padding-block: clamp(48px, 6vw, 72px) clamp(32px, 4vw, 48px);
+  }
+
+  .footer-brand {
+    min-width: 0;
+  }
+
+  .footer-wordmark {
+    display: grid;
+    gap: 4px;
+    justify-items: start;
+  }
+
+  .footer-name {
+    color: var(--color-footer-heading);
+    font-family: var(--font-serif);
+    font-size: 21px;
+    letter-spacing: 0.16em;
+    line-height: 1.1;
+  }
+
+  /* --color-footer-text, not --color-cta: the button colour has no relationship
+     to the footer ground, and in the template default they are the SAME VALUE —
+     the subtitle rendered at 1:1 against its own background. The footer inks are
+     the ones the contrast pass checks against this ground. */
+  .footer-sub {
+    color: var(--color-footer-text);
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    line-height: 1.2;
+  }
+
+  .footer-blurb {
+    margin: var(--space-4) 0;
+    max-width: 32ch;
+    color: var(--color-footer-text);
+    font-size: var(--description-text-size);
+    line-height: 1.9;
+  }
+
+  .footer-social {
+    display: flex;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer-social a {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-footer-rule);
+    border-radius: 999px;
+  }
+
+  /* The mark takes the footer's own ink.
+
+     It used to be `filter: invert(1)` on an <img>, with a comment saying "the
+     footer is dark, so they are inverted here rather than shipped twice". The
+     second half was true and the first half was an assumption: `footer-bg` is
+     whatever a shop sets, and one storefront ships a near-white one. The mark
+     files are dark; inverted they come out near-white too, and at 0.85 over a
+     cream footer that measured 1.17:1 — three invisible marks, with no
+     shop-side lever, because this file is template-owned.
+
+     Measured across the family at the time this changed: the eight dark footers
+     sat at 5.50–11.54:1 and the pale one at 1.17:1. So the defect was
+     CONDITIONAL, which is exactly the shape that survives review — it looks
+     fine everywhere you happen to look.
+
+     Masking removes the condition rather than adding a branch for it. The
+     colour is now `--color-footer-text`, which the `footer` ground already
+     declares as an ink and `audit:color` already measures against
+     `--color-footer-bg` — so the mark's legibility stopped being something
+     nobody checks and became something that fails the build. On the RAIL the
+     glyphs are not inverted at all (they sit on `--color-surface` and measured
+     14.82–17.40:1 everywhere), which is why this is footer-only. */
+  .footer-social .footer-mark {
+    display: block;
+    width: 16px;
+    height: 16px;
+    background: var(--color-footer-text);
+    -webkit-mask: var(--glyph) center / contain no-repeat;
+    mask: var(--glyph) center / contain no-repeat;
+  }
+
+  .footer-col h3 {
+    margin: 0 0 var(--space-3);
+    color: var(--color-footer-heading);
+    font-family: var(--font-serif-display);
+    font-size: var(--footer-heading-size);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--footer-heading-letter-spacing);
+    line-height: 1.4;
+  }
+
+  .footer-col ul {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer-col a,
+  .footer-contact li {
+    color: var(--color-footer-text);
+    font-size: var(--footer-link-size);
+    letter-spacing: var(--footer-copy-letter-spacing);
+    line-height: 1.6;
+  }
+
+  .footer-col a:hover,
+  .footer-col a:focus-visible {
+    color: var(--color-footer-heading);
+  }
+
+  .footer-pay {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer-pay img {
+    width: auto;
+    height: 22px;
+  }
+
+  .footer-bar {
+    border-top: 1px solid var(--color-footer-rule);
+  }
+
+  .footer-bar-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block: var(--space-4);
+  }
+
+  .footer-bar p {
+    margin: 0;
+    color: var(--color-footer-text);
+    font-size: var(--footer-copy-size);
+  }
+
+  .footer-bar ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer-bar a {
+    color: var(--color-footer-text);
+    font-size: var(--footer-copy-size);
+  }
+
+  .footer-bar a:hover,
+  .footer-bar a:focus-visible {
+    color: var(--color-footer-heading);
+  }
+
+  @media (max-width: 1024px) {
+    .footer-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+
+  @media (max-width: 560px) {
+    .footer-grid { grid-template-columns: minmax(0, 1fr); }
+    .footer-bar-inner { flex-direction: column; align-items: flex-start; }
+  }
+</style>

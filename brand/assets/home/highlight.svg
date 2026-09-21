@@ -1,0 +1,8 @@
+<!-- template-placeholder: replace this file with real artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600" role="img" aria-label="HIGHLIGHT">
+  <rect width="600" height="600" fill="#f0f0f0"/>
+  <rect x="0.5" y="0.5" width="599" height="599" fill="none" stroke="#dddddd"/>
+  <line x1="0" y1="0" x2="600" y2="600" stroke="#e4e4e4"/>
+  <line x1="600" y1="0" x2="0" y2="600" stroke="#e4e4e4"/>
+  <text x="300" y="300" fill="#767676" font-family="system-ui, sans-serif" font-size="45" text-anchor="middle" dominant-baseline="middle">HIGHLIGHT</text>
+</svg>

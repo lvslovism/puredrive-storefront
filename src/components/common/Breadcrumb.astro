@@ -1,0 +1,138 @@
+---
+/**
+ * A breadcrumb trail, and the BreadcrumbList that says the same thing to a
+ * crawler.
+ *
+ * ## Why one component rather than a line of markup per page
+ *
+ * Every inner page in this template already draws a trail — `privacy`, `terms`
+ * and `returns-policy` through `LegalDocument`, `about` and the rest by hand —
+ * and not one of them emits any structured data. A crawler reading those pages
+ * sees a flat site: nine pages hanging off the root with no stated relation to
+ * each other, which is the one thing a breadcrumb exists to fix. The visible
+ * trail and the machine-readable one are the same fact, so they are produced
+ * together here rather than left as two jobs, one of which nobody remembers.
+ *
+ * ## The last crumb
+ *
+ * It is the page you are on, so it is not a link. `aria-current="page"` says so
+ * to a screen reader; JSON-LD carries it as the final `ListItem` WITH its url,
+ * because BreadcrumbList describes the path to a page and the path ends at that
+ * page. Dropping it would describe a trail one step short of where the reader
+ * is.
+ *
+ * ## Hrefs
+ *
+ * Through `safeHref`, like every other link list on the site. A shop that turns
+ * `contentPages` off does not build `/about`, and a breadcrumb pointing there
+ * would be a dead click in the one component whose whole job is orientation.
+ * The rewrite prints a line naming the flag responsible — see src/lib/features.
+ *
+ * The JSON-LD urls are string-concatenated onto `SITE_ORIGIN`, never built with
+ * `new URL(..., Astro.site)`: that constructor is what trips the build OOM this
+ * project has hit before. `src/lib/seo.ts` says the same thing at its head.
+ */
+import { safeHref } from "../../lib/features";
+import { SITE_ORIGIN } from "../../lib/commerce";
+import { safeJson } from "../../lib/safe-json";
+
+export interface Crumb {
+  label: string;
+  href: string;
+}
+
+interface Props {
+  /** Root first, current page last. A single crumb is a valid trail. */
+  items: Crumb[];
+  /** Read by screen readers to tell one trail from another on a page. */
+  label?: string;
+}
+
+const { items, label = "麵包屑" } = Astro.props;
+
+const trail = items.map((item) => ({ label: item.label, href: safeHref(item.href) }));
+const last = trail.length - 1;
+
+/* Positions are 1-based and taken from the rendered array, not counted by hand,
+   so the schema cannot describe a different trail from the visible one. */
+const jsonLd =
+  trail.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: trail.map((item, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          name: item.label,
+          item: `${SITE_ORIGIN}${item.href}`,
+        })),
+      }
+    : null;
+---
+
+{trail.length > 0 && (
+  <nav class="breadcrumb" aria-label={label}>
+    <ol>
+      {trail.map((item, index) => (
+        <li>
+          {index === last ? (
+            <span aria-current="page">{item.label}</span>
+          ) : (
+            <a href={item.href}>{item.label}</a>
+          )}
+        </li>
+      ))}
+    </ol>
+  </nav>
+)}
+
+{jsonLd && <script type="application/ld+json" set:html={safeJson(jsonLd)} />}
+
+<style>
+  /* Ink through the GROUND roles, not the pale page's tokens: this trail is
+     drawn over dark hero photography as often as on a white band, and a
+     breadcrumb that keeps its near-black on a dark ground is invisible in
+     exactly the place it is most needed. */
+  .breadcrumb ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--meta-text-size);
+    letter-spacing: var(--label-letter-spacing);
+  }
+
+  .breadcrumb li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ground-ink-muted);
+  }
+
+  /* The separator is a pseudo-element on every item but the first, so it is
+     decoration a screen reader never announces — and there is no stray
+     character in the DOM for a text selection to pick up. */
+  .breadcrumb li + li::before {
+    content: "/";
+    color: var(--ground-rule);
+  }
+
+  .breadcrumb a {
+    color: var(--ground-ink-soft);
+    text-decoration: none;
+  }
+
+  .breadcrumb a:hover,
+  .breadcrumb a:focus-visible {
+    color: var(--ground-ink-strong);
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+  }
+
+  .breadcrumb [aria-current="page"] {
+    color: var(--ground-ink);
+  }
+</style>

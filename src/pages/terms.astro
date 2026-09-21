@@ -1,0 +1,147 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import LegalDocument from "../components/content/LegalDocument.astro";
+import { identity } from "../../brand/identity";
+import { legal } from "../../brand/legal";
+import { getMerchant } from "../lib/commerce";
+import { deriveLegalContact } from "../lib/content-derivation.mjs";
+
+// 聯絡資訊 bullets derive from storefront_config.contact — same source as the
+// footer, so the legal page can never quote a stale company block.
+//
+// The clause text below is a TEMPLATE, not advice. Read every clause and edit
+// the ones that do not describe how you actually trade.
+//
+// EDIT THEM IN `brand/legal.ts`, under `legal.terms.clauses`, not here. This
+// file is in template.lock.json and compared byte for byte, so an edit here
+// turns `audit:template` red and does not travel to any other storefront. What
+// follows is the DEFAULT, used by every shop that declares nothing — which is
+// what keeps this change invisible to the storefronts already in production.
+const merchant = await getMerchant();
+const legalContact = deriveLegalContact(merchant?.storefront_config);
+const clauses = legal.terms.clauses;
+
+const introParagraphs = clauses?.introParagraphs ?? [
+  `歡迎使用 ${legal.tradingName} 官方網站。當您瀏覽本網站、註冊會員、下單購買商品或使用相關服務時，即表示您已閱讀並同意以下服務條款。`,
+];
+
+const defaultSections = [
+  {
+    heading: "一、網站服務",
+    paragraphs: [
+      `${legal.tradingName} 提供商品瀏覽、會員註冊、線上購物、訂單查詢、付款、配送及客服等相關服務。本網站有權依營運需求調整商品內容、價格、優惠活動、付款方式、配送方式及服務項目。`,
+    ],
+  },
+  {
+    heading: "二、會員資料",
+    paragraphs: [
+      "您於註冊會員或下單時，應提供正確、完整且可聯繫的資料。若因資料錯誤、不完整或無法聯繫，導致訂單無法成立、配送延誤或商品退回，相關責任由您自行負擔。",
+      "本網站會員採 LINE 登入，不另設帳號密碼；請自行妥善保管您的 LINE 帳號與登入裝置，凡經由您的帳號完成之操作，均視為會員本人行為。",
+    ],
+  },
+  {
+    heading: "三、商品資訊",
+    paragraphs: [
+      "本網站將盡力提供正確的商品圖片、價格、規格及說明。商品圖片可能因拍攝光線、螢幕顯示或包裝批次不同，與實際商品略有差異，實際內容以出貨商品為準。",
+      "若發生商品價格、庫存、規格或系統資訊錯誤，本網站保留取消或修改訂單之權利。",
+    ],
+  },
+  {
+    heading: "四、訂單與付款",
+    paragraphs: [
+      "當您送出訂單後，系統會寄送訂單通知信。該通知代表本網站已收到您的訂購需求，實際訂單仍須經付款完成、庫存確認及系統審核後成立。",
+      "付款方式依結帳頁面顯示為準。若發生付款失敗、授權失敗、資料錯誤或交易異常，本網站得取消訂單或暫停出貨。",
+    ],
+  },
+  {
+    heading: "五、配送",
+    paragraphs: [
+      "本網站將依訂單順序及商品庫存安排出貨。實際到貨時間可能因物流、假日、天候、疫情、天災或其他不可抗力因素而有所延遲。",
+      "請確認收件人姓名、電話及地址正確。若因資料錯誤、無人收件、拒收或逾期未取貨造成商品退回，重新配送或相關費用須由消費者自行負擔。",
+    ],
+  },
+  {
+    heading: "六、退換貨",
+    paragraphs: [
+      "依消費者保護法規定，網路購物享有商品到貨後七日鑑賞期。七日鑑賞期並非試用期，退回商品須保持全新、完整、未使用狀態，並保留完整包裝、配件、贈品及發票等資料。",
+      "若商品屬於經事先告知不適用七日鑑賞期之類別（例如已拆封之個人衛生用品、客製化商品或易腐商品），除商品本身瑕疵外，恕不接受退換貨。請依實際販售的商品調整本條。",
+      "若收到商品有瑕疵、破損、品項錯誤或數量錯誤，請於收到商品後儘速與客服聯繫，並提供訂單編號及商品照片，以利協助處理。",
+    ],
+  },
+  {
+    heading: "七、優惠活動",
+    paragraphs: [
+      "本網站之優惠活動、折價券、購物金、贈品及會員權益，均依網站公告與結帳頁面顯示為準。",
+      "優惠不得兌換現金、找零或轉讓。若訂單取消、退貨或部分退貨，相關優惠與贈品將依實際訂單狀況重新計算或收回。",
+    ],
+  },
+  {
+    heading: "八、智慧財產權",
+    paragraphs: [
+      "本網站所有品牌名稱、LOGO、圖片、文字、商品介紹、網頁設計、影片及其他內容，均屬本網站或合法權利人所有。未經授權，不得擅自複製、轉載、修改、散布或作商業使用。",
+    ],
+  },
+  {
+    heading: "九、服務異動與免責",
+    paragraphs: [
+      "本網站可能因系統維護、設備更新、網路異常、物流延誤、金流異常、天災或其他不可抗力因素，導致服務暫停、延遲或中斷。本網站將盡力維持服務正常運作，但不保證服務完全不中斷或無錯誤。",
+    ],
+  },
+  {
+    heading: "十、條款修改",
+    paragraphs: [
+      "本網站保留隨時修改本服務條款之權利。修改後內容將公告於網站，並自公告日起生效。若您於條款修改後繼續使用本網站，即視為同意修改後內容。",
+    ],
+  },
+];
+
+// The site's FULL trader disclosure lives here, and only here.
+//
+// 消保法 §18 and the 零售業等網路交易定型化契約應記載事項 make the seller's
+// identity — 名稱、統一編號、營業所地址、聯絡方式 — a term of the contract, not
+// a piece of page furniture. This page IS the contract, and unlike /contact it
+// is built whatever `flags.contentPages` says, so the disclosure cannot be
+// switched off with a feature flag.
+//
+// The footer used to carry all six lines on every page and now carries three
+// (客服專線／電子郵件／公司名稱); the other three did not disappear, they landed
+// here, one click from every page via the footer's bottom bar. Every value
+// derives from the same storefront_config.contact the footer reads, so there is
+// no second copy to drift.
+//
+// APPENDED, NOT DECLARED, and that is why it is not in `LegalClauses`. A shop
+// rewriting its terms writes its own clauses; it does not get to write this one
+// away, and it does not have to keep it in step with the merchant record
+// either. Only the number in front of it moves, because a shop with a different
+// number of clauses needs a different one.
+const contactSection = {
+  heading: clauses?.contactHeading ?? "十一、聯絡資訊",
+  paragraphs: [
+    clauses?.contactLead ??
+      "如您對訂單、付款、配送、退換貨或本服務條款有任何問題，請透過以下方式與我們聯繫：",
+  ],
+  bullets: [
+    `客服專線：${legalContact.phone}`,
+    `服務時間：${legalContact.serviceHours}`,
+    `電子郵件：${identity.contact.email}`,
+    `公司名稱：${legalContact.legalEntity}`,
+    `統一編號：${legalContact.taxId}`,
+    `公司地址：${legalContact.address}`,
+  ],
+};
+
+const sections = [...(clauses?.sections ?? defaultSections), contactSection];
+---
+
+<BaseLayout title="使用條款" description={legal.terms.description}>
+  <LegalDocument
+    breadcrumbLabel="使用條款"
+    title="使用條款"
+    updatedAt={legal.terms.effectiveDate}
+    introTitle={legal.terms.introTitle}
+    introParagraphs={introParagraphs}
+    sections={sections}
+    contactNote="若您對使用條款內容有任何疑問，歡迎透過聯絡我們頁面與我們聯繫。"
+    ctaLabel="聯絡我們"
+  />
+</BaseLayout>

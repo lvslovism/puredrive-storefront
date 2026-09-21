@@ -1,0 +1,140 @@
+---
+// Fast-visit event loss fix.
+//
+// Root cause: track()/captureUtm()/initBeaconFlush() all ship inside
+// Astro-bundled `type="module"` scripts, which are DEFERRED and fetched over the
+// network. On a sub-100ms visit (open a product page → close it) that module
+// never downloads and executes, so the product_view event is never enqueued,
+// first-touch UTM is never captured, and the pagehide/visibilitychange flush
+// handlers are never registered — the queue hardening had nothing to flush. A
+// 30-second visit "worked" only because the extra wall-clock let the module run.
+//
+// Fix: this bootstrap ships `is:inline`, so it runs synchronously DURING HTML
+// parse (no bundle, no network fetch) — even on an instant close. It owns the
+// three fast-path concerns:
+//   1. first-touch UTM capture (so a fast ad → product click-through still fixes
+//      attribution)
+//   2. hidden/pagehide sendBeacon flush of the module path's unconfirmed queue
+//   3. window[BEACON_GLOBAL](type, payload): fire an event immediately via
+//      sendBeacon (no queue — sendBeacon is delivered by the browser through
+//      unload), used by auto-fire events like product_view that can't wait.
+//
+// The module path (track() in src/lib/track.ts) still handles interaction events
+// (add_to_cart / begin_checkout …): those are interaction-gated, so by the time
+// the user can click, the module has loaded. initBeaconFlush() defers its handler
+// registration to this inline owner via window[FLUSH_FLAG] to avoid a double
+// flush. Storage keys and the POST body shape are kept byte-identical to
+// track.ts on purpose — this inline flush must be able to send items the module
+// enqueued. The coupling is by string contract, documented here and there.
+//
+// Tradeoff: sendBeacon can't carry Authorization, so these events lose the
+// derived customer_id (the backend still lands them on session_id and merges the
+// guest session). Same stance the flush path already takes: delivery > dedup.
+import { storageKey, CONFIG_GLOBAL, BEACON_GLOBAL, FLUSH_FLAG } from "../../../brand/identity";
+
+const LS_SESSION = storageKey("session_id");
+---
+
+<script
+  is:inline
+  define:vars={{ CONFIG_GLOBAL, BEACON_GLOBAL, FLUSH_FLAG, LS_SESSION }}
+>
+  (function () {
+    try {
+      var CFG = window[CONFIG_GLOBAL] || {};
+      var apiBase = CFG.apiBase, merchant = CFG.merchantCode, demo = CFG.demo === true;
+      var SS_UTM = "ap_utm", SS_QUEUE = "ap_evq";
+      var UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "gclid", "ttclid"];
+
+      // 1) first-touch UTM (mirror of track.ts captureUtm) — inline so it fixes
+      //    before a fast navigation away from the ad landing page.
+      try {
+        if (!sessionStorage.getItem(SS_UTM)) {
+          var p = new URLSearchParams(location.search), utm = {}, n = 0;
+          for (var i = 0; i < UTM_KEYS.length; i++) {
+            var v = p.get(UTM_KEYS[i]);
+            if (v) { utm[UTM_KEYS[i]] = v.slice(0, 200); n++; }
+          }
+          if (n > 0) sessionStorage.setItem(SS_UTM, JSON.stringify(utm));
+        }
+      } catch (e) { /* private mode — attribution best-effort */ }
+
+      // `demo` mirrors track.ts: a build with no merchant has nowhere to send
+      // events, and a beacon nobody accepts is just console noise on a
+      // storefront that has not been bound yet.
+      function ingestUrl() { return (apiBase && merchant && !demo) ? apiBase + "/v1/events" : null; }
+      function getUtm() {
+        try {
+          var r = sessionStorage.getItem(SS_UTM);
+          if (!r) return null;
+          var o = JSON.parse(r);
+          return (o && typeof o === "object" && !Array.isArray(o)) ? o : null;
+        } catch (e) { return null; }
+      }
+      // MUST mirror auth.ts getSessionId(): create-if-missing under the SAME
+      // localStorage key so the id the inline beacon sends === the id the later
+      // module path reads → events/carts join on one sess_. A cold fast-visit has
+      // no session yet; a read-only lookup would send session_id:null and the
+      // ingest 400s it. Same sess_<uuid-no-dash> shape as auth.ts.
+      function sessionId() {
+        try {
+          var s = localStorage.getItem(LS_SESSION);
+          if (!s) {
+            var c = window.crypto;
+            var rnd = (c && c.randomUUID)
+              ? c.randomUUID().replace(/-/g, "")
+              : (Math.random().toString(36).slice(2) + Date.now().toString(36));
+            s = "sess_" + rnd;
+            localStorage.setItem(LS_SESSION, s);
+          }
+          return s;
+        } catch (e) { return null; }
+      }
+
+      // 2) the immediate beacon: build the track.ts body shape and sendBeacon NOW.
+      //    text/plain Blob = CORS-safelisted (no preflight); the server parses the
+      //    body as JSON regardless of content-type. No queue: sendBeacon survives
+      //    unload.
+      function beacon(type, payload) {
+        try {
+          var url = ingestUrl();
+          if (!url || typeof navigator === "undefined" || !navigator.sendBeacon) return false;
+          payload = payload || {};
+          var ev = { event_type: type, session_id: sessionId() };
+          for (var k in payload) {
+            if (k !== "context" && Object.prototype.hasOwnProperty.call(payload, k)) ev[k] = payload[k];
+          }
+          var utm = getUtm(), ctx = payload.context;
+          if (utm || ctx) ev.context = utm ? Object.assign({}, ctx || {}, { utm: utm }) : ctx;
+          var body = JSON.stringify({ merchant_code: merchant, events: [ev] });
+          return navigator.sendBeacon(url, new Blob([body], { type: "text/plain" }));
+        } catch (e) { return false; }
+      }
+      window[BEACON_GLOBAL] = beacon;
+
+      // 3) hidden/pagehide flush of the module path's unconfirmed queue.
+      //    Registered inline so it exists from parse time; track.ts skips its own
+      //    registration when it sees the flag.
+      function flush() {
+        try {
+          var raw = sessionStorage.getItem(SS_QUEUE);
+          if (!raw) return;
+          var q = JSON.parse(raw);
+          if (!Array.isArray(q) || !q.length) return;
+          var url = ingestUrl();
+          if (!url || !navigator.sendBeacon) return;
+          var all = true;
+          for (var i = 0; i < q.length; i++) {
+            if (!navigator.sendBeacon(url, new Blob([q[i].body], { type: "text/plain" }))) all = false;
+          }
+          if (all) sessionStorage.setItem(SS_QUEUE, "[]");
+        } catch (e) { /* best-effort */ }
+      }
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "hidden") flush();
+      });
+      window.addEventListener("pagehide", flush);
+      window[FLUSH_FLAG] = true;
+    } catch (e) { /* fire-and-forget — beacons must never affect the page */ }
+  })();
+</script>

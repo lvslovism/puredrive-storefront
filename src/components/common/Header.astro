@@ -1,0 +1,306 @@
+---
+/**
+ * The header: the wordmark, the navigation a multi-page shop needs, and the
+ * cart / member / call-to-action cluster every shop has.
+ *
+ * The nav is not a constant. A one-page shop has nothing to navigate TO — its
+ * catalogue, its FAQ and its contact details are all further down the same
+ * document — so `brand/copy.ts → navigation` empties, and the centre column
+ * and the drawer that carries it on a phone both disappear. Four links that
+ * scroll rather than go is what the scroll wheel is for.
+ *
+ * What survives in both shapes is the actions cluster. It stays visible at
+ * every width: the labels drop on a narrow screen, the controls do not, which
+ * is why the drawer only ever has to hold the nav.
+ *
+ * The cart control is a LINK when this shop has a /cart page and a BUTTON when
+ * the cart is a drawer: it opens a dialog in one configuration and navigates in
+ * the other, and those are different elements.
+ *
+ * A SHOWCASE storefront (`flags.commerce: false`) has neither, and no member
+ * area to link to either, so the whole cluster collapses to one button that
+ * opens LINE. That is not the cluster with pieces hidden — a cart icon with no
+ * cart behind it is a promise the shop cannot keep — it is a different cluster,
+ * which is why the two are separate branches rather than three flags on the
+ * same markup.
+ */
+import MobileHeader from "./MobileHeader.astro";
+import { identity } from "../../../brand/identity";
+import { ground } from "../../lib/ground";
+import { navigation, header as headerCopy } from "../../../brand/copy";
+import { visibleLinks, isVisibleHref, flags } from "../../lib/features";
+import { lineEnquiryHref } from "../../lib/line";
+
+const currentPath = Astro.url.pathname;
+const items = visibleLinks(navigation);
+// A CTA pointing at a route this build did not produce is worse than no CTA,
+// so it runs through the same filter every other link does.
+const showCta = Boolean(headerCopy.ctaLabel) && isVisibleHref(headerCopy.ctaHref);
+
+// A showcase storefront has no cart to open, no member area to enter and
+// nothing to select, so the cluster collapses to one button: ask us on LINE.
+// It can still come back null — see src/lib/line.ts — and the header then
+// carries the wordmark alone rather than a button that goes nowhere.
+const enquiryHref = flags.commerce ? null : lineEnquiryHref();
+// The anchor fallback is same-document; line.me is not. Only the second wants
+// a new tab, and getting that wrong would open a scroll-to-section in one.
+const enquiryExternal = Boolean(enquiryHref && /^https?:/.test(enquiryHref));
+---
+
+<header
+  class:list={["site-header", items.length > 0 && "has-nav"]}
+  data-section="site-header"
+  {...ground("header")}
+>
+  <div class="header-inner container">
+    <a class="wordmark" href="/" aria-label={identity.name}>
+      <span class="wordmark-name">{identity.logoText}</span>
+      {identity.logoSubtext && <span class="wordmark-sub">{identity.logoSubtext}</span>}
+    </a>
+
+    {items.length > 0 && (
+      <nav class="desktop-nav" aria-label="主選單">
+        {items.map((item) => (
+          <a class:list={["nav-link", currentPath === item.href && "is-active"]} href={item.href}>
+            {item.label}
+          </a>
+        ))}
+      </nav>
+    )}
+
+    <div class="header-actions">
+      {!flags.commerce && enquiryHref && (
+        <a
+          class="header-cta header-enquiry"
+          href={enquiryHref}
+          target={enquiryExternal ? "_blank" : undefined}
+          rel={enquiryExternal ? "noopener noreferrer" : undefined}
+        >{headerCopy.inquiryLabel}</a>
+      )}
+
+      {flags.commerce && (flags.cartPage ? (
+        <a class="action" href="/cart">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9.6" cy="19.8" r="1.3"></circle><circle cx="17.4" cy="19.8" r="1.3"></circle><path d="M2.6 3.6h2.6l2.4 11.2h11l2.1-8H6.3"></path></svg>
+          <span class="action-label">{headerCopy.cart}</span>
+          <span class="action-count" data-cart-count>0</span>
+        </a>
+      ) : (
+        <button type="button" class="action" data-cart-open aria-label={headerCopy.cart}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9.6" cy="19.8" r="1.3"></circle><circle cx="17.4" cy="19.8" r="1.3"></circle><path d="M2.6 3.6h2.6l2.4 11.2h11l2.1-8H6.3"></path></svg>
+          <span class="action-label">{headerCopy.cart}</span>
+          <span class="action-count" data-cart-count>0</span>
+        </button>
+      ))}
+
+      {flags.commerce && (
+        <a class="action" href="/login">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M4.8 20.4c0-4 3.3-6.4 7.2-6.4s7.2 2.4 7.2 6.4"></path></svg>
+          <span class="action-label">{headerCopy.member}</span>
+        </a>
+      )}
+
+      {flags.commerce && showCta && <a class="header-cta" href={headerCopy.ctaHref}>{headerCopy.ctaLabel}</a>}
+
+      {/* Only a shop WITH a nav needs somewhere to put it on a phone. */}
+      {items.length > 0 && <MobileHeader items={items} />}
+    </div>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--color-header-bg);
+    border-bottom: 1px solid var(--ground-rule);
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-height: 76px;
+  }
+
+  /* With a nav there are three things to place, not two, and the middle one
+     wants the centre of the header rather than the middle of what is left. */
+  .site-header.has-nav .header-inner {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .wordmark {
+    display: grid;
+    gap: 3px;
+    justify-items: start;
+    min-width: 0;
+  }
+
+  .wordmark-name {
+    color: var(--ground-ink-strong);
+    font-family: var(--font-serif);
+    font-size: 22px;
+    letter-spacing: 0.16em;
+    line-height: 1.1;
+    /* A wordmark that wraps is not a wordmark. */
+    white-space: nowrap;
+  }
+
+  .wordmark-sub {
+    color: var(--ground-ink-muted);
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .desktop-nav {
+    display: flex;
+    justify-content: center;
+    gap: clamp(18px, 1.8vw, 30px);
+    color: var(--ground-ink);
+    font-size: var(--description-text-size);
+  }
+
+  .nav-link {
+    position: relative;
+    padding-block: 28px;
+    letter-spacing: var(--nav-letter-spacing);
+    line-height: 20px;
+  }
+
+  /* Current page marker. The only "state" style the nav has — a hover effect
+     would be decoration, but losing your place in the site is a usability bug. */
+  .nav-link.is-active::after {
+    position: absolute;
+    right: 0;
+    bottom: 21px;
+    left: 0;
+    height: 1px;
+    background: var(--ground-ink-strong);
+    content: "";
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .action {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: var(--ground-ink-soft);
+    font-size: var(--description-text-size);
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  /* The two glyphs are INLINE SVG in this file, not files under brand/assets/,
+     and they carry no paint of their own — `fill: none` plus
+     `stroke: currentColor` here is the whole of their colour, so they take the
+     header's ink and follow it through a rebrand.
+
+     That is the shape pitfall #5 exists to force. Shipped as
+     `<img src="cart.svg">` they would load as separate documents, resolve
+     `currentColor` against nothing, and render whatever colour was typed into
+     the file — and `audit:color` would not object, because its first pass only
+     reads `src/`. Inline, they ARE `src/`: the audit walks over them on every
+     run, and no `colourLiterals` exemption is claimed for either. */
+  .action svg {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .action:hover,
+  .action:focus-visible {
+    color: var(--ground-ink-strong);
+  }
+
+  /* The count rides beside the label, not on top of the glyph — there is room
+     for it here, and a badge overlapping an icon is only necessary when there
+     is no label to sit next to. */
+  .action-count {
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--color-cta);
+    color: var(--color-cta-text);
+    font-size: 11px;
+    line-height: 19px;
+    text-align: center;
+  }
+
+  .header-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 12px 30px;
+    /* The header's button, with a pair of its own that a shop may declare.
+       Absent, it is the dark pill it has always been — the fallbacks are the
+       exact tokens this rule used to name.
+       Its own pair because the header is the one bar that can run a different
+       polarity from the page under it: a brand colour that clears AA as a
+       button on a pale header is not the same value that clears it on a dark
+       one, and `--cta-dark` is shared with the hero panel and cannot move for
+       the header's sake alone. Declared together and audited together — a
+       ground without its ink is a button whose label vanished. */
+    background: var(--color-header-cta-bg, var(--cta-dark));
+    color: var(--color-header-cta-ink, var(--color-on-dark));
+    font-size: var(--button-text-size);
+    letter-spacing: var(--button-letter-spacing);
+    line-height: 20px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* The nav folds into the drawer before the actions need to give anything up. */
+  @media (max-width: 980px) {
+    .desktop-nav {
+      display: none;
+    }
+
+    .site-header.has-nav .header-inner {
+      grid-template-columns: auto auto;
+    }
+  }
+
+  /* Narrow screens drop the labels, not the controls — the icons and the CTA
+     still fit, which is why the drawer never has to carry them. */
+  @media (max-width: 760px) {
+    .header-inner { min-height: 64px; gap: var(--space-3); }
+    .wordmark-name { font-size: 18px; }
+    .wordmark-sub { font-size: 8px; letter-spacing: 0.22em; }
+    .header-actions { gap: var(--space-3); }
+    .action-label { display: none; }
+    .header-cta { padding: 10px 16px; min-height: 38px; }
+  }
+
+  /* A shop with a drawer carries one control more than a shop without, and the
+     CTA is the one of them the drawer's own links already reach.
+
+     :not(.header-enquiry) because a showcase storefront's enquiry button is not
+     one control among several — it is the ONLY one, and the drawer carries a
+     nav, not a way to contact anybody. Dropping it here would leave the phone
+     header with a wordmark and a hamburger and no way to ask about anything. */
+  @media (max-width: 560px) {
+    .site-header.has-nav .header-cta:not(.header-enquiry) { display: none; }
+  }
+
+  @media (max-width: 380px) {
+    .action-count { display: none; }
+  }
+</style>

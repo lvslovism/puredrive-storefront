@@ -1,0 +1,171 @@
+---
+/**
+ * A full-bleed hero for an inner page: one photograph, a scrim, and the title
+ * over it.
+ *
+ * ## Which hero this is, and which it is not
+ *
+ * `global.css` already declares three hero geometries. `--split` puts copy
+ * beside a picture, which is what `/about` uses; the base variant is a centred
+ * text band with no image at all. This component is the third — `--cover`, copy
+ * floating over a full-bleed image — which had a stylesheet and no component,
+ * so every page that wanted one drew its own markup and its own scrim.
+ *
+ * ## The scrim, and why it is two stops
+ *
+ * `--overlay-top` and `--overlay-bottom` come from `identity.tokens.ui`, and
+ * they are in `ui` rather than `color` for a reason worth knowing before
+ * copying the pattern: a `color.*-bg` is a GROUND, and `audit:color` measures
+ * every ink declared on it. A wash over a photograph has no ratio to measure —
+ * the photograph is not known at build time. See the note beside the tokens.
+ *
+ * The gradient runs light at the head to dark at the foot because that is where
+ * the load is: the title sits high, the breadcrumb sits low and small, and a
+ * flat wash strong enough to carry 12px type at the bottom greys out the whole
+ * image.
+ *
+ * ## Ink
+ *
+ * `tone` sets `[data-ground]`, so the title, lead and breadcrumb resolve their
+ * ink from the ground rather than reading the pale page's tokens. Default
+ * `'dark'`: a photograph under a scrim is a dark ground, and the ink has to
+ * reverse with it. A shop with a pale-washed image passes `tone="light"` and
+ * the whole subtree re-resolves — no descendant selectors, no specificity
+ * fight. That is what the ground bindings are for; see src/lib/ground.ts.
+ *
+ * ## The image
+ *
+ * A site-root asset path — `/assets/about/hero.svg` — the same shape
+ * `brand/copy.ts` already uses for every other image on the site, so a page can
+ * hand this component the field it already has. `sizeAttrs` reads the file's
+ * real dimensions at build time so the browser reserves the box before the
+ * bytes arrive; a hero is the LCP element on the page it opens, so it is
+ * `fetchpriority="high"` and never lazy.
+ */
+import Breadcrumb from "./Breadcrumb.astro";
+import type { Crumb } from "./Breadcrumb.astro";
+import { sizeAttrs } from "../../lib/image-size";
+
+interface Props {
+  title: string;
+  /** The sentence under the title. Omit for a title-only hero. */
+  lead?: string;
+  /** Root first, this page last. Omit to draw no trail. */
+  breadcrumb?: Crumb[];
+  /** Site-root asset path, e.g. `/assets/about/hero.svg`. */
+  image: string;
+  /**
+   * Alt text. Defaults to EMPTY, which is the honest answer for a hero: the
+   * photograph is behind the page's own <h1> and repeats nothing a reader would
+   * otherwise miss, so announcing it interrupts rather than informs. A hero
+   * whose image genuinely carries information passes its own.
+   */
+  imageAlt?: string;
+  /** Which ink set resolves over the scrim. */
+  tone?: "light" | "dark";
+  /** Small line above the title — a section name, a category. */
+  eyebrow?: string;
+}
+
+const {
+  title,
+  lead,
+  breadcrumb = [],
+  image,
+  imageAlt = "",
+  tone = "dark",
+  eyebrow,
+} = Astro.props;
+---
+
+<section class="page-hero page-hero--cover hero-cover" data-ground={tone} data-section="page_hero">
+  <img
+    class="hero-cover__image"
+    src={image}
+    alt={imageAlt}
+    {...sizeAttrs(image)}
+    fetchpriority="high"
+    decoding="async"
+  />
+  <div class="hero-cover__scrim" aria-hidden="true"></div>
+
+  <div class="container hero-cover__inner">
+    <div class="hero-copy">
+      {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+      <h1 class="page-title">{title}</h1>
+      {lead && <p class="lead">{lead}</p>}
+      {breadcrumb.length > 0 && <Breadcrumb items={breadcrumb} />}
+    </div>
+  </div>
+</section>
+
+<style>
+  /* `.page-hero--cover` in global.css supplies the height and the left
+     alignment. What is added here is the stacking: image at the back, scrim
+     over it, copy on top — all three in the same grid cell, so the section is
+     as tall as its own padding demands rather than as tall as the picture. */
+  .hero-cover {
+    position: relative;
+    display: grid;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .hero-cover__image,
+  .hero-cover__scrim,
+  .hero-cover__inner {
+    grid-area: 1 / 1;
+  }
+
+  .hero-cover__image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* An SVG placeholder has no meaningful intrinsic ratio to cover with, and
+       `object-position: center` keeps a real photograph's subject in frame at
+       every width the hero is asked to be. */
+    object-position: center;
+  }
+
+  .hero-cover__scrim {
+    background: linear-gradient(180deg, var(--overlay-top) 0%, var(--overlay-bottom) 100%);
+  }
+
+  .hero-cover__inner {
+    z-index: 1;
+    align-self: center;
+    width: min(100% - 48px, var(--container));
+    padding-block: var(--page-hero-padding-block);
+  }
+
+  .hero-copy {
+    display: flex;
+    flex-direction: column;
+    /* margin, not gap: a hero's parts are optional, and `gap` would space a
+       missing eyebrow's absence as if it were there. Each child owns the space
+       above it, so removing one removes its spacing with it. */
+    gap: 0;
+  }
+
+  .hero-copy > * {
+    margin: 0;
+  }
+
+  .hero-copy > * + * {
+    margin-top: var(--space-3);
+  }
+
+  .hero-copy > .page-title + .lead {
+    margin-top: var(--space-4);
+  }
+
+  .hero-copy > :global(.breadcrumb) {
+    margin-top: var(--space-5);
+  }
+
+  @media (max-width: 767px) {
+    .hero-cover__inner {
+      width: calc(100% - var(--mobile-padding) * 2);
+    }
+  }
+</style>

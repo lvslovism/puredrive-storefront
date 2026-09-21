@@ -1,0 +1,30 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import BlogOverview from "../../../components/content/BlogOverview.astro";
+import { getAllArticles } from "../../../lib/commerce";
+import { buildBlogItemList } from "../../../lib/seo";
+import { blog } from "../../../../brand/copy";
+
+const PAGE_SIZE = 9;
+
+export async function getStaticPaths() {
+  const pageSize = 9;
+  const articles = await getAllArticles();
+  const pageCount = Math.max(1, Math.ceil(Math.max(articles.length - 1, 0) / pageSize));
+
+  return Array.from({ length: Math.max(pageCount - 1, 0) }, (_, index) => {
+    const page = index + 2;
+    return {
+      params: { page: String(page) },
+      props: { articles, currentPage: page, pageCount },
+    };
+  });
+}
+
+const { articles, currentPage } = Astro.props;
+const itemListJsonLd = buildBlogItemList(articles, currentPage, PAGE_SIZE);
+---
+
+<BaseLayout title={`${blog.metaTitle} 第 ${currentPage} 頁`} description={blog.metaDescription} jsonLd={itemListJsonLd}>
+  <BlogOverview articles={articles} currentPage={currentPage} pageSize={PAGE_SIZE} />
+</BaseLayout>

@@ -1,0 +1,31 @@
+{
+  "name": "commerce-storefront-template",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/sync-brand-assets.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/sync-brand-assets.mjs",
+    "build": "astro build",
+    "postbuild": "node scripts/build-deployment-files.mjs",
+    "prepreview": "node scripts/sync-brand-assets.mjs",
+    "preview": "astro preview",
+    "assets:validate": "node scripts/sync-brand-assets.mjs --check",
+    "audit:brand": "node scripts/audit-brand.mjs",
+    "audit:color": "node scripts/audit-color.mjs",
+    "test": "npm run audit:brand && npm run audit:color && npm run audit:template && npm run build && node --test \"tests/*.test.*\"",
+    "audit:template": "node scripts/audit-template.mjs",
+    "template:lock": "node scripts/write-template-lock.mjs",
+    "template:report": "node scripts/template-report.mjs"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.3",
+    "astro": "^6.4.7",
+    "rehype-parse": "^9.0.1",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "unified": "^11.0.5"
+  },
+  "description": "A brand-agnostic Astro storefront for the Astrapath commerce API. Fill in brand/, keep src/ untouched."
+}

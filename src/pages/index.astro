@@ -1,0 +1,46 @@
+---
+/**
+ * The home page is the one page whose SHAPE a shop chooses rather than inherits.
+ *
+ * Both presets live in src/components/home/; `brand/copy.ts → home` says which
+ * one this shop uses, and `preset` is the discriminator switched on below. That
+ * keeps the choice in the fill-in layer where it belongs: selecting a one-page
+ * landing home is one edit in brand/, not a rewrite of this file.
+ *
+ * Only the selected preset renders. The other one costs a compile and nothing
+ * else — no markup, no styles and no data fetches reach the built page, because
+ * each preset loads its own catalogue inside its own frontmatter.
+ */
+import BaseLayout from "../layouts/BaseLayout.astro";
+import HomeLanding from "../components/home/HomeLanding.astro";
+import HomeMultipage from "../components/home/HomeMultipage.astro";
+import { home, homePresets } from "../../brand/copy";
+import { assertHeroCopy } from "../lib/hero-copy";
+
+/**
+ * Every preset, not just the one that renders.
+ *
+ * The selected preset validates its own hero inside its component, which is
+ * where a bad value would actually hurt. That is not enough on its own: the
+ * defect this catches was in the preset nobody had selected — `homeLanding`
+ * shipped with no `hero.tone`, rendered `home-hero--undefined`, and built green
+ * for as long as `home` pointed at the other one. Nothing type-checks this
+ * build (`astro build` does not run `astro check`), so a required field missing
+ * from an unrendered object had nothing at all looking at it.
+ *
+ * Selecting the other preset is a ONE-LINE edit in brand/copy.ts. It must not
+ * also be a bug report, so both are checked on every build — the cost is a loop
+ * over two objects, and it runs in the module graph rather than in a test,
+ * because `brand/` is TypeScript with extensionless imports that plain Node
+ * cannot resolve.
+ */
+for (const preset of homePresets) {
+  // Named the way brand/copy.ts names it, so the message points at the object
+  // to edit rather than at the discriminator's value.
+  assertHeroCopy(preset.hero, preset.preset === "landing" ? "homeLanding" : "homeMultipage");
+}
+---
+
+<BaseLayout title={home.metaTitle} description={home.metaDescription}>
+  {home.preset === "landing" ? <HomeLanding copy={home} /> : <HomeMultipage copy={home} />}
+</BaseLayout>

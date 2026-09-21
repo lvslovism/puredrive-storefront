@@ -1,0 +1,157 @@
+---
+/**
+ * The assurances band: four short promises, drawn on either ground.
+ *
+ * Reads `trust.items` from `brand/copy.ts` rather than taking them as props.
+ * The band says the same four things everywhere it appears — that is the point
+ * of it — and a component that took them as a prop would let one page's list
+ * drift out of step with another's, with nothing to notice.
+ *
+ * ## The glyphs are inline SVG, not files
+ *
+ * They are single-path line marks that have to take their colour from the
+ * ground they land on — `stroke: currentColor` — and an <img> cannot inherit
+ * ink. `brand/assets/` is for photography and wordmarks; four 24px paths do not
+ * earn four HTTP requests, and `audit:color` would refuse a baked colour in
+ * them anyway.
+ *
+ * `set:html` is safe here in the one way that matters: the glyph bodies below
+ * are constants in this file, and the only thing a shop chooses is WHICH key to
+ * name. An unknown name falls back to the shield rather than rendering nothing,
+ * so a typo is a wrong mark and not an empty box.
+ *
+ * An item with NO `icon` draws no mark at all. That is deliberate and it is
+ * written down twice — see `IconItem` in brand/copy.ts, which records what
+ * happened when a stand-in glyph was compulsory: four assurances all pointed at
+ * the same numeral file and the band rendered "1 1 1 1". A placeholder that
+ * makes a claim is worse than a missing one.
+ *
+ * ## Ground
+ *
+ * `ground` sets `[data-ground]`, so the title, body, hairlines and the mark
+ * itself resolve from the ground rather than from the pale page's tokens. It
+ * does NOT set a background: a shop that darkens this band nearly always wants
+ * its own hue, and `--color-*-bg` is where that is said. Turning the ink over
+ * without turning the background over is exactly what `audit:color` fails on,
+ * which is the check that makes this prop safe to expose.
+ */
+import { trust } from "../../../brand/copy";
+
+interface Props {
+  /** Which ink set the band resolves. Does not paint the background. */
+  ground?: "light" | "dark";
+  /** Optional heading above the row. Most uses want none. */
+  title?: string;
+}
+
+const { ground = "light", title } = Astro.props;
+
+/**
+ * Four marks, keyed by the names `brand/copy.ts` documents.
+ *
+ * Stroke-only, 24×24, no fills — a filled glyph reads as a different weight
+ * from its neighbours the moment one of them is a line mark, and a shop mixing
+ * the shipped names with its own would get exactly that.
+ */
+const GLYPHS: Record<string, string> = {
+  shield: '<path d="M12 3l7 3v5c0 4.4-2.9 8.3-7 10-4.1-1.7-7-5.6-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  delivery: '<path d="M3 7h10v9H3z"/><path d="M13 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
+  payment: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>',
+  support: '<path d="M5 12a7 7 0 0 1 14 0"/><path d="M5 12v4a2 2 0 0 0 2 2h1v-6H7a2 2 0 0 0-2 2z"/><path d="M19 12v4a2 2 0 0 1-2 2h-1v-6h1a2 2 0 0 1 2 2z"/>',
+};
+
+const items = trust.items;
+---
+
+{items.length > 0 && (
+  <section class="trust-band section" data-ground={ground} data-section="trust_band">
+    <div class="container">
+      {title && <h2 class="section-title trust-band__title">{title}</h2>}
+      <ul class="trust-band__grid">
+        {items.map((item) => (
+          <li class="trust-band__item">
+            {item.icon && (
+              <svg
+                class="trust-band__icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                set:html={GLYPHS[item.icon] ?? GLYPHS.shield}
+              />
+            )}
+            <h3 class="trust-band__heading">{item.title}</h3>
+            <p class="trust-band__body">{item.body}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+)}
+
+<style>
+  .trust-band__title {
+    margin: 0 0 var(--space-6);
+    text-align: center;
+  }
+
+  .trust-band__grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-6) var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .trust-band__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    text-align: center;
+  }
+
+  .trust-band__icon {
+    width: 32px;
+    height: 32px;
+    /* The mark reads the ground's accent and paints itself with it. This is the
+       whole reason the glyphs are inline: `currentColor` on a <use> from an
+       external file resolves against the file, not the page. */
+    color: var(--ground-accent);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .trust-band__heading {
+    margin: 0;
+    color: var(--ground-ink-strong);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    line-height: var(--card-title-line-height);
+    letter-spacing: var(--card-title-letter-spacing);
+  }
+
+  .trust-band__body {
+    margin: 0;
+    max-width: 32ch;
+    color: var(--ground-ink-muted);
+    font-size: var(--description-text-size);
+    line-height: var(--description-line-height);
+    letter-spacing: var(--description-letter-spacing);
+  }
+
+  @media (max-width: 1023px) {
+    .trust-band__grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 559px) {
+    .trust-band__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

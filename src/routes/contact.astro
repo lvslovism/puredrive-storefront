@@ -1,0 +1,264 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { identity } from "../../brand/identity";
+import { contact } from "../../brand/copy";
+import { getMerchant } from "../lib/commerce";
+import { deriveLegalContact } from "../lib/content-derivation.mjs";
+import { sizeAttrs } from "../lib/image-size";
+
+// Company info derives from storefront_config.contact — same source as the
+// footer. Only the e-mail is a brand setting, because the merchant record
+// carries no e-mail field.
+const merchant = await getMerchant();
+const legalContact = deriveLegalContact(merchant?.storefront_config);
+
+const infoRows = [
+  { label: "Email", value: identity.contact.email },
+  { label: "電話", value: legalContact.phone },
+  { label: "公司名稱", value: legalContact.legalEntity },
+  { label: "服務時間", value: legalContact.serviceHours },
+  { label: "公司地址", value: legalContact.address },
+];
+---
+
+<BaseLayout title={contact.metaTitle} description={contact.metaDescription}>
+  <section class="contact-hero page-hero" data-section="contact_hero">
+    <div class="container hero-copy">
+      <p class="eyebrow">{contact.hero.eyebrow}</p>
+      <h1 class="page-title">{contact.hero.title}</h1>
+      <p class="lead">{contact.hero.lead}</p>
+    </div>
+  </section>
+
+  <section class="section contact-main" data-section="contact_form">
+    <div class="container contact-grid">
+      {/* The form is presentational: this storefront has no form endpoint, so
+          the submit button stays inert rather than pretending to send. Wire it
+          to your own handler, or delete the form and keep the info card. */}
+      <form class="surface" method="post" action="#">
+        <label>姓名<input name="name" placeholder="請輸入您的姓名" /></label>
+        <label>Email<input type="email" name="email" placeholder="you@mail.com" /></label>
+        <label>電話<input name="phone" placeholder="請輸入聯絡電話" /></label>
+        <label>訊息<textarea name="message" rows="6" placeholder="請輸入您想詢問的內容"></textarea></label>
+        <button type="submit">送出聯絡資訊</button>
+      </form>
+      <aside class="surface info-card" data-section="contact_info">
+        <h2>聯絡資訊</h2>
+        <dl>
+          {infoRows.map((row) => (
+            <div class="info-row">
+              <dt>{row.label}</dt>
+              <dd>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </aside>
+    </div>
+  </section>
+
+  {contact.methods.length > 0 && (
+    <section class="section methods-section" data-section="contact_methods">
+      <div class="container">
+        <div class="center-copy">
+          <h2 class="section-title">{contact.methodsHeading.title}</h2>
+          <p class="lead">{contact.methodsHeading.lead}</p>
+        </div>
+        <div class="method-grid">
+          {contact.methods.map((method) => (
+            <article>
+              <img class="card-bg" src={method.image} alt="" loading="lazy" decoding="async" {...sizeAttrs(method.image)} />
+              <div>
+                {method.icon && <img class="method-icon" src={method.icon} alt="" loading="lazy" decoding="async" {...sizeAttrs(method.icon)} />}
+                <h3>{method.title}</h3>
+                <p>{method.text}</p>
+                <a href={method.href}>{method.action} →</a>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+</BaseLayout>
+
+<style>
+  .contact-hero {
+    background: var(--color-soft);
+  }
+
+  .contact-main {
+    background: var(--color-soft);
+    padding-top: clamp(40px, 3.2vw, 56px);
+  }
+
+  .contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-5);
+  }
+
+  form,
+  .info-card {
+    width: 100%;
+    min-width: 0;
+    padding: var(--space-5);
+  }
+
+  label {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    color: var(--color-text);
+    font-size: var(--description-text-size);
+  }
+
+  input,
+  textarea {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    background: var(--color-surface);
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  button {
+    width: 100%;
+    min-height: 50px;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: var(--color-cta);
+    color: var(--color-cta-text);
+    cursor: pointer;
+  }
+
+  .info-card h2 {
+    margin-top: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--section-title-size);
+    font-weight: var(--title-weight);
+    line-height: var(--title-line-height);
+  }
+
+  .info-card dl {
+    margin: 0;
+  }
+
+  .info-row {
+    display: grid;
+    gap: 4px;
+    padding-block: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .info-row dt {
+    color: var(--color-muted);
+    font-size: var(--description-text-size);
+    line-height: 1.6;
+  }
+
+  .info-row dd {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--description-text-size);
+    line-height: 1.6;
+  }
+
+  .center-copy {
+    max-width: 720px;
+    margin: 0 auto var(--space-6);
+    text-align: center;
+  }
+
+  .method-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-5);
+  }
+
+  .method-grid article {
+    position: relative;
+    min-height: 270px;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    background: var(--color-soft);
+  }
+
+  .card-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .method-grid article > div {
+    position: relative;
+    z-index: 1;
+    padding: var(--space-5);
+  }
+
+  .method-icon {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    margin-bottom: var(--space-4);
+  }
+
+  .method-grid h3 {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--card-title-size);
+    font-weight: var(--title-weight);
+    line-height: var(--card-title-line-height);
+  }
+
+  .method-grid p {
+    color: var(--color-text);
+    font-size: var(--description-text-size);
+    line-height: var(--description-line-height);
+  }
+
+  .method-grid a {
+    color: var(--color-ink);
+    font-size: var(--body-text-size);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 860px) {
+    .contact-grid,
+    .method-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 430px) {
+    form,
+    .info-card {
+      padding: var(--space-4);
+    }
+
+    label {
+      margin-bottom: var(--space-3);
+    }
+
+    input,
+    textarea {
+      padding: 12px;
+    }
+
+    .method-grid article {
+      min-height: 240px;
+    }
+
+    .method-grid article > div {
+      padding: var(--space-4);
+    }
+  }
+</style>

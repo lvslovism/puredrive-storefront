@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.astro/
+
+# Generated: mirrored from brand/assets/ by scripts/sync-brand-assets.mjs before
+# every astro command. Editing anything here edits a build artefact.
+public/
+
+.env
+.env.*
+.DS_Store
+Thumbs.db
+!.env.example
+
+# Design reference only — never build input (see design-mockups/README.md).
+# Large, churny binaries stay out of history; .gitkeep and README.md are not
+# images, so they are not matched here and keep the directory on a fresh clone.
+design-mockups/*.png
+design-mockups/*.jpg
+design-mockups/*.webp
+
+# Generated at build time by scripts/build-deployment-files.mjs, from
+# brand/identity.ts. Workers config only; Pages does not read it.
+wrangler.jsonc

@@ -1,0 +1,88 @@
+/* Structural design tokens: layout, spacing, type scale, radii.
+ *
+ * No colour and no font family appears in this file. Those are declared once in
+ * brand/identity.ts and inlined into a `:root` block by BaseLayout, so a shop
+ * changes its palette by editing one object rather than by grepping stylesheets
+ * — a property `npm run audit:color` enforces.
+ *
+ * What lives here is the geometry every storefront shares. The values are
+ * deliberately unopinionated: a neutral type scale, even spacing steps, square
+ * corners. Distinctive proportions are a brand decision, so they belong to
+ * whoever fills the template in, not to the template.
+ */
+
+:root {
+  --container: 1200px;
+  --mobile-padding: 16px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 80px;
+  --space-9: 96px;
+
+  --section-padding-desktop: 80px;
+  --section-padding-tablet: 64px;
+  --section-padding-mobile: 48px;
+
+  /* Non-home page heroes. One height for the cover/split variants, one padding
+     for the simple text-only variant; pages no longer each carry their own. */
+  --page-hero-min-height: clamp(320px, 32vw, 440px);
+  --page-hero-padding-block: clamp(48px, 5vw, 72px);
+  --page-hero-copy-max: 720px;
+
+  --title-weight: 500;
+  --body-weight: 400;
+
+  /* The hero headline, and nothing else — two consumers, both the home hero's
+     h1. Sized apart from the rest of the scale because it is the only heading
+     whose job is to be the top of the page rather than the top of a section.
+     40px put it 6px above --page-title-size, which is not a hierarchy.
+
+     54/36 is MEASURED, not chosen. A one-character last line is a property of
+     one headline against the 520px copy measure at one size, and a clamp
+     resolves to a different size at every width — so it sweeps through every
+     size between its ends. Swept 360-1600px across five shops, 54/36 is the
+     largest pair that leaves BOTH reference widths, 1440 and 390, free of one.
+     56px orphans 「常」 from 1300px up; 48px orphans 「能」 at 390 AND from
+     1240px up. See docs/PITFALLS.md #9 — including the part about what this
+     does to a scrim that was swept against the old copy rect. */
+  --hero-title-size: clamp(36px, 3.75vw, 54px);
+  --page-title-size: clamp(26px, 2.6vw, 34px);
+  --section-title-size: clamp(24px, 2.4vw, 30px);
+  --card-title-size: 18px;
+  --body-text-size: 16px;
+  --description-text-size: 14px;
+  --small-label-size: 14px;
+  --button-text-size: 14px;
+  --footer-copy-size: 13px;
+  --footer-heading-size: 14px;
+  --footer-link-size: 13px;
+  --meta-text-size: 12px;
+
+  --body-line-height: 1.7;
+  --title-line-height: 1.25;
+  --description-line-height: 1.7;
+  --card-title-line-height: 1.5;
+
+  --label-letter-spacing: 0.08em;
+  --nav-letter-spacing: 0.02em;
+  --title-letter-spacing: 0;
+  --hero-title-letter-spacing: 0;
+  --card-title-letter-spacing: 0;
+  --description-letter-spacing: 0;
+  --button-letter-spacing: 0.04em;
+  --footer-heading-letter-spacing: 0.08em;
+  --footer-copy-letter-spacing: 0;
+  --meta-letter-spacing: 0.04em;
+
+  --product-image-ratio: 1 / 1;
+
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+}

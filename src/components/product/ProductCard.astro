@@ -1,0 +1,127 @@
+---
+import { formatMoney } from "../../../brand/identity";
+
+interface Product {
+  slug: string;
+  name: string;
+  price: number;
+  image: string;
+  summary: string;
+}
+
+interface Props {
+  product: Product;
+  variant?: "default" | "compact";
+}
+
+const { product, variant = "default" } = Astro.props;
+---
+
+<article class:list={["product-card", `variant-${variant}`]}>
+  <a href={`/products/${product.slug}`} aria-label={product.name}>
+    {/* Product images are remote, so their intrinsic size can't be read at build
+        time. The attributes exist to reserve the box before the bytes land; the
+        numbers only have to carry the right ratio, which is the square
+        --product-image-ratio the CSS below enforces (and the CSS aspect-ratio
+        wins over these if the token ever changes). */}
+    <img src={product.image} alt={product.name} width="800" height="800" loading="lazy" decoding="async" />
+    <div>
+      <h3>{product.name}</h3>
+      <p class="price">{formatMoney(product.price)}</p>
+    </div>
+  </a>
+</article>
+
+<style>
+  .product-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  img {
+    width: 100%;
+    aspect-ratio: var(--product-image-ratio);
+    object-fit: cover;
+    background: var(--color-soft);
+  }
+
+  div {
+    min-width: 0;
+    padding: 18px 18px 20px;
+    text-align: center;
+  }
+
+  h3 {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    min-height: 54px;
+    font-size: 17px;
+    font-weight: var(--body-weight);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+
+  .price {
+    margin: 12px 0 0;
+    color: var(--text-secondary);
+    font-family: var(--font-serif);
+    font-size: 16px;
+    font-weight: var(--body-weight);
+    line-height: 1.6;
+  }
+
+  /* Compact: the borderless variant the home page's featured band uses, where
+     the cards sit on a tinted section and a frame each would fight it. */
+  .variant-compact {
+    border: 0;
+    background: transparent;
+  }
+
+  .variant-compact div {
+    padding: 16px 0 4px;
+    text-align: left;
+  }
+
+  .variant-compact h3 {
+    min-height: 0;
+    font-size: 15px;
+  }
+
+  .variant-compact .price {
+    margin-top: 10px;
+    font-size: 15px;
+  }
+
+  @media (max-width: 560px) {
+    div {
+      padding: 14px 14px 16px;
+    }
+
+    h3 {
+      min-height: 44px;
+      font-size: 16px;
+    }
+
+    .price {
+      font-size: 15px;
+    }
+
+    .variant-compact div {
+      padding: 10px 0 2px;
+    }
+
+    .variant-compact h3 {
+      min-height: 42px;
+      font-size: 14px;
+    }
+
+    .variant-compact .price {
+      margin-top: 8px;
+      font-size: 14px;
+    }
+  }
+</style>

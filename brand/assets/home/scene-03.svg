@@ -1,0 +1,8 @@
+<!-- template-placeholder: replace this file with real artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1050" width="1400" height="1050" role="img" aria-label="SCENE 03">
+  <rect width="1400" height="1050" fill="#f0f0f0"/>
+  <rect x="0.5" y="0.5" width="1399" height="1049" fill="none" stroke="#dddddd"/>
+  <line x1="0" y1="0" x2="1400" y2="1050" stroke="#e4e4e4"/>
+  <line x1="1400" y1="0" x2="0" y2="1050" stroke="#e4e4e4"/>
+  <text x="700" y="525" fill="#767676" font-family="system-ui, sans-serif" font-size="90" text-anchor="middle" dominant-baseline="middle">SCENE 03</text>
+</svg>

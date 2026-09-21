@@ -1,0 +1,162 @@
+---
+/**
+ * The member sign-in card: a brand panel beside the one way in.
+ *
+ * TWO surfaces render this — /login, and the member wall on /checkout — and
+ * they render the SAME component rather than the same markup twice. They had
+ * diverged already: the login page was a two-column card with the shop's
+ * imagery on it, and the checkout wall was a centred stack of a heading, a
+ * lead and a button, so the moment a customer hit the wall they left the shop's
+ * design and landed on something that looked like an auth provider's page.
+ *
+ * What the two surfaces are allowed to differ on is exactly three things, and
+ * they are the three props: what the card SAYS (a member logging in is not the
+ * same errand as a member being stopped mid-purchase), which script hook the
+ * button carries (they return to different places), and the heading level,
+ * because the wall is one view of a page that already has its own heading
+ * structure.
+ *
+ * Everything else — the imagery, the wordmark, the tagline, the geometry — is
+ * the shop's and is read here, not passed in. The slot underneath carries
+ * whatever that surface owes the customer next: the privacy note and the policy
+ * consent on /login, the way back to the cart on /checkout.
+ */
+import LineButton from "./LineButton.astro";
+import { identity } from "../../../brand/identity";
+import { member } from "../../../brand/copy";
+
+interface Props {
+  title: string;
+  lead: string;
+  /** Data attribute the page's script binds the click on. */
+  loginHook: string;
+  /**
+   * 1 on a page that is nothing but this card; 2 where it is one view of a
+   * page with its own heading structure. A card that always shouted h1 would
+   * plant a second document title inside checkout.
+   */
+  headingLevel?: 1 | 2;
+}
+
+const { title, lead, loginHook, headingLevel = 1 } = Astro.props;
+const Heading = `h${headingLevel}` as "h1" | "h2";
+const aside = member.loginAside;
+---
+
+<div class="login-card">
+  <aside class="login-aside">
+    <img src={aside.image} alt={aside.imageAlt} loading="lazy" decoding="async" />
+    <div class="login-aside-copy">
+      <p class="login-aside-name">{identity.logoText}</p>
+      <p class="login-aside-tagline">{aside.tagline}</p>
+    </div>
+  </aside>
+
+  <div class="login-panel">
+    <Heading class="login-title">{title}</Heading>
+    <p class="login-lead">{lead}</p>
+    <LineButton hook={loginHook} />
+    <slot />
+  </div>
+</div>
+
+<style>
+  /* Its own token, not one of the shared rules. A shop may set --color-login-bg
+     to the same value as --color-surface, and then this border is the ONLY thing
+     saying where the card is — which is a weight neither shared rule is set for.
+     Giving it its own means the shop can make it carry that job without
+     darkening every divider and input on the site to do it. */
+  .login-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+    border: 1px solid var(--color-login-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+
+  .login-aside {
+    position: relative;
+    min-height: 360px;
+  }
+
+  .login-aside img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* The wordmark sits ON a photograph nobody in src/ has seen, which is the
+     same bet the header used to make and lost. A scrim decides the ground
+     instead: --color-on-dark is checked against --cta-dark by the contrast
+     pass, and the gradient makes --cta-dark what is actually behind the text.
+     Built from a token plus a transparent stop, so no literal enters src/. */
+  .login-aside::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, var(--cta-dark) 0%, transparent 54%);
+  }
+
+  .login-aside-copy {
+    position: absolute;
+    z-index: 1;
+    inset: auto 0 0 0;
+    padding: var(--space-5);
+  }
+
+  .login-aside-name {
+    margin: 0;
+    color: var(--color-on-dark);
+    font-family: var(--font-serif);
+    font-size: 28px;
+    letter-spacing: 0.16em;
+    line-height: 1.2;
+  }
+
+  .login-aside-tagline {
+    margin: 8px 0 0;
+    color: var(--color-on-dark);
+    font-size: var(--description-text-size);
+    line-height: 1.6;
+  }
+
+  .login-panel {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: var(--space-3);
+    padding: clamp(32px, 5vw, 64px);
+    text-align: center;
+  }
+
+  .login-title {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: var(--page-title-size);
+    font-weight: var(--title-weight);
+    letter-spacing: 0.1em;
+    line-height: var(--title-line-height);
+  }
+
+  .login-lead {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--description-text-size);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 760px) {
+    .login-card {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .login-aside {
+      min-height: 200px;
+    }
+  }
+</style>

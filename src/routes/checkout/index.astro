@@ -1,0 +1,496 @@
+---
+/**
+ * Checkout.
+ *
+ * The comp draws a three-step rail across the top — 購物車 → 填寫資訊 → 確認付款.
+ * This shop has no /cart page and no confirmation page: the cart is a drawer and
+ * the order is placed from this screen, so two of the three steps are not URLs
+ * anybody can be at. A rail whose steps cannot be visited is decoration that
+ * lies about where you are, so it is not built. That is a property of the
+ * one-page shape, not of this brand.
+ *
+ * Section order follows the comp: who it goes to, where it goes, how it travels,
+ * how it is invoiced, how it is paid. The address block appears only for home
+ * delivery — the CVS picker takes its place for store pickup.
+ *
+ * Amounts are NOT computed here. Every figure in the summary comes from
+ * checkout/init, which the server recalculates; the markup only carries the
+ * slots. Config-driven build: shipping and payment options come from the
+ * merchant bundle, never hardcoded.
+ */
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import LoginCard from "../../components/common/LoginCard.astro";
+import { getMerchant } from "../../lib/commerce";
+import { derivePaymentMethods } from "../../lib/checkout-payments.mjs";
+import { formatMoney } from "../../../brand/identity";
+import { checkout as checkoutCopy, cart as cartCopy, notFound } from "../../../brand/copy";
+import { flags, safeHref } from "../../lib/features";
+
+const merchant = await getMerchant();
+const shippingCfg = merchant?.shipping_config ?? {};
+const paymentCfg = merchant?.payment_config ?? {};
+
+const shippingMethods = Object.entries(shippingCfg.methods ?? {})
+  .filter(([, m]: [string, any]) => m?.enabled === true)
+  .map(([key, m]: [string, any]) => ({ key, label: m.label ?? key, fee: m.fee ?? 0 }));
+
+const freeShippingThreshold = shippingCfg.free_shipping_threshold ?? null;
+
+// Payment options come SOLELY from merchant payment_config.allowed_methods
+// (server truth) — no hardcoded allow/deny gate. Throws on missing/empty config
+// so a broken bundle fails the build instead of shipping a COD-only checkout.
+const paymentMethods = derivePaymentMethods(paymentCfg);
+// "keep shopping" is a shop-shape decision, so it goes through the route filter.
+const keepShoppingHref = safeHref(notFound.secondaryCtaHref);
+---
+
+<BaseLayout title="結帳" description={checkoutCopy.metaDescription}>
+  <section class="section checkout-main" data-checkout-page>
+    <div class="container">
+      <nav class="crumb" aria-label="麵包屑">
+        <a href="/">首頁</a>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">結帳</span>
+      </nav>
+
+      <p class="state-msg" data-checkout-loading>結帳資料載入中…</p>
+
+      {/* The member wall. Same card the /login page renders — a customer
+          stopped here has not left the shop, so the screen that stops them
+          must not look like somebody else's. What changes is the errand: the
+          heading and lead say why they are being stopped mid-purchase, and the
+          way back to the cart goes with them. */}
+      <div class="login-gate" data-checkout-gate style="display: none">
+        <LoginCard
+          title={checkoutCopy.gateTitle}
+          lead={checkoutCopy.memberGateLead}
+          loginHook="data-checkout-login"
+          headingLevel={2}
+        >
+          {flags.cartPage ? <a class="link" href="/cart">返回購物車</a> : <button type="button" class="link" data-cart-open>返回購物車</button>}
+        </LoginCard>
+      </div>
+
+      <div class="empty" data-checkout-empty style="display: none">
+        <h2 class="gate-title">{cartCopy.emptyTitle}</h2>
+        <p class="gate-lead">{cartCopy.emptyLead}</p>
+        <a class="link" href={keepShoppingHref}>{cartCopy.emptyCtaLabel}</a>
+      </div>
+
+      <div class="checkout-grid" data-checkout-form data-free-threshold={freeShippingThreshold ?? ""} style="display: none">
+        <div class="form-column surface">
+          <section class="form-section">
+            <h2>收件人資訊</h2>
+            <div class="field-grid">
+              <label><span>姓名 <i aria-hidden="true">*</i></span><input type="text" data-ci-name placeholder="請輸入收件人姓名" autocomplete="name" /></label>
+              <label><span>手機 <i aria-hidden="true">*</i></span><input type="tel" data-ci-phone placeholder="請輸入手機號碼" autocomplete="tel" /></label>
+              <label><span>電子郵件 <i aria-hidden="true">*</i></span><input type="email" data-ci-email placeholder="請輸入電子郵件" autocomplete="email" /></label>
+            </div>
+          </section>
+
+          {/* 宅配收件地址 (spec-checkout-home-address-v1) — its own section now, but
+              still toggled as one node by the shipping-method handler, which
+              queries [data-home-box] from the document and does not care where it
+              sits. Recipient name and phone are NOT repeated here: they are read
+              from the section above, which every order needs anyway, so there is
+              one place to type them and one place they can disagree.
+
+              Visibility is inline `style.display`, not `hidden` — .home-box
+              carries an author `display:grid` rule that beats the UA
+              `[hidden]{display:none}`, the same trap .cvs-box works around. */}
+          <section class="form-section home-box" data-home-box style="display: none">
+            <h2>收件地址</h2>
+            <p class="hint">收件人姓名與電話沿用上方收件人資訊。</p>
+            <div class="field-grid">
+              <label>
+                <span>縣市 <i aria-hidden="true">*</i></span>
+                <input type="text" name="city" data-addr-city placeholder="例：臺北市" autocomplete="address-level1" />
+              </label>
+              <label>
+                <span>鄉鎮市區 <i aria-hidden="true">*</i></span>
+                <input type="text" name="district" data-addr-district placeholder="例：大安區" autocomplete="address-level2" />
+              </label>
+              {/* address-line1, not street-address: the county and district are
+                  already their own fields, and street-address means "the whole
+                  address", which makes browsers autofill the lot into here. */}
+              <label class="full">
+                <span>地址 <i aria-hidden="true">*</i></span>
+                <input type="text" name="address_line1" data-addr-line placeholder="請輸入詳細地址（例：路名、巷弄、門牌號碼）" autocomplete="address-line1" />
+              </label>
+              <label>
+                <span>郵遞區號 <i aria-hidden="true">*</i></span>
+                <input type="text" name="postal_code" data-addr-postal inputmode="numeric" placeholder="例：106" autocomplete="postal-code" />
+              </label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h2>運送方式</h2>
+            <div class="option-row">
+              {shippingMethods.map((m, i) => (
+                <label class="option-card">
+                  <input type="radio" name="shipping" value={m.key} checked={i === 0} data-fee={m.fee} />
+                  <div>
+                    <strong>{m.label}</strong>
+                    <p>{formatMoney(m.fee)}{freeShippingThreshold ? `（滿 ${formatMoney(freeShippingThreshold)} 免運）` : ""}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div class="cvs-box" data-cvs-box style="display: none">
+              <p class="hint">超商取貨需先透過綠界地圖選擇取貨門市。</p>
+              <button type="button" class="ghost-btn" data-cvs-pick>選擇門市</button>
+              <div class="cvs-selected" data-cvs-selected style="display: none">
+                <strong data-cvs-store-name>—</strong>
+                <span data-cvs-store-meta>—</span>
+              </div>
+              <p class="cvs-error error" data-cvs-error hidden></p>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h2>發票資訊</h2>
+            <div class="field-grid">
+              <label class="full">
+                <span>發票類型</span>
+                <select data-invoice-type>
+                  <option value="phone_barcode">手機條碼載具</option>
+                  <option value="member">會員載具</option>
+                  <option value="citizen">自然人憑證載具</option>
+                  <option value="company">公司戶（統一編號）</option>
+                  <option value="donation">捐贈發票</option>
+                </select>
+              </label>
+
+              <!-- Conditional fields carry inline display:none (not the [hidden]
+                   attribute) — author `display:grid` on label/.field-grid beats
+                   [hidden], so the attribute wouldn't hide them and would also
+                   flash pre-JS. checkout.ts toggles the active one on select. -->
+              <p class="hint full" data-invoice-field="member" style="display: none">
+                將自動以您的會員 Email／手機作為發票載具，無需另外填寫。
+              </p>
+
+              <label class="full" data-invoice-field="carrier" style="display: none">
+                <span data-invoice-carrier-label>手機條碼（/ 開頭 8 碼）</span>
+                <input type="text" data-invoice-carrier placeholder="/ABC1234" />
+              </label>
+
+              <div class="field-grid full" data-invoice-field="company" style="display: none">
+                <label><span>統一編號</span><input type="text" data-invoice-buyer-id placeholder="輸入統一編號（8 碼數字）" /></label>
+                <label><span>公司抬頭</span><input type="text" data-invoice-buyer-name placeholder="公司名稱" /></label>
+              </div>
+
+              <label class="full" data-invoice-field="donation" style="display: none">
+                <span>愛心碼</span>
+                <input type="text" data-invoice-donation value="025" placeholder="3–7 碼數字" />
+              </label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h2>付款方式</h2>
+            <div class="option-row">
+              {paymentMethods.map((m) => (
+                <label class:list={["option-card", !m.enabled && "is-disabled"]}>
+                  <input type="radio" name="payment" value={m.key} checked={m.enabled && m.key === "cod"} disabled={!m.enabled} />
+                  <div><strong>{m.label}</strong></div>
+                </label>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <div class="summary-column">
+          <aside class="order-summary surface">
+            <h2>訂單摘要</h2>
+            <div class="summary-list" data-summary-list></div>
+
+            <div class="totals">
+              <div><span>商品小計</span><strong data-field-items-total>{formatMoney(0)}</strong></div>
+              <div><span>運費</span><strong data-field-shipping>{formatMoney(0)}</strong></div>
+
+              <div data-discount-row style="display: none"><span data-discount-label>優惠折扣</span><strong class="is-discount" data-field-discount>- NT$ 0</strong></div>
+
+              <!-- 折扣碼 (promo-checkout): 折扣行在上、折扣碼輸入區在下
+                   (商品小計 → 運費 → 折扣行 → 折扣碼輸入區). Expanded by default
+                   (D-B). Input row and applied chip (D-D) are mutually-exclusive
+                   states toggled by checkout.ts. Error stays inline directly
+                   under the input. -->
+              <div class="promo-box" data-promo-box>
+                <!-- Two states share ONE row shape: a flex-1 left box + a
+                     fixed-width right button. Input row (未套用) and chip row
+                     (已套用) are the same geometry so the toggle never shifts
+                     anything. checkout.ts toggles the two [data-promo-*] rows'
+                     visibility and binds 移除 → removePromotion(). -->
+                <div class="promo-row" data-promo-input-row>
+                  <input type="text" class="promo-input" data-promo-input placeholder="請輸入優惠碼" autocomplete="off" />
+                  <button type="button" class="promo-apply" data-promo-apply>套用</button>
+                </div>
+                <div class="promo-row" data-promo-chip style="display: none">
+                  <!-- 折抵金額已由上方折扣行呈現，chip 只留代碼避免重複
+                       (chip-slim-v1). data-promo-chip-amount 元素移除；
+                       checkout.ts 以 if (promoChipAmount) 保護，其寫入自動 no-op。 -->
+                  <div class="promo-chip">
+                    <span class="promo-chip-code" data-promo-chip-code>—</span>
+                  </div>
+                  <button type="button" class="promo-remove" data-promo-remove>移除</button>
+                </div>
+                <!-- 狀態訊息區 (feedback-v1): one element, two semantics —
+                     muted 已套用 confirmation vs red failure (server
+                     error_message). Always in flow with a reserved line
+                     (min-height) so appearing/clearing never shifts the summary.
+                     checkout.ts toggles .is-success / .is-error. -->
+                <p class="promo-status" data-promo-error></p>
+              </div>
+            </div>
+
+            <div class="grand-total">
+              <span>訂單總計</span>
+              <span class="grand-amount">
+                <strong data-field-grand>{formatMoney(0)}</strong>
+                <em>已包含稅金</em>
+              </span>
+            </div>
+
+            <p class="error" data-checkout-error hidden></p>
+
+            <button type="button" class="primary-btn" data-confirm>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9" rx="1.6"></rect><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"></path></svg>
+              <span>確認付款 / 送出訂單</span>
+            </button>
+
+            <p class="secure-note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l7 2.6v5.2c0 4.2-2.9 7.5-7 9.2-4.1-1.7-7-5-7-9.2V6.1z"></path><path d="M9.2 12.2l2 2 3.6-3.9"></path></svg>
+              <span><strong>{checkoutCopy.secureNote.title}</strong>{checkoutCopy.secureNote.text}</span>
+            </p>
+
+            {flags.cartPage ? <a class="link back" href="/cart">返回購物車</a> : <button type="button" class="link back" data-cart-open>返回購物車</button>}
+          </aside>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    import { initCheckoutPage } from "../../scripts/checkout";
+    import { track } from "../../lib/track";
+    initCheckoutPage();
+    // begin_checkout beacon: once per checkout page load (page-load hook only — the
+    // checkout logic itself is untouched).
+    track("begin_checkout");
+  </script>
+</BaseLayout>
+
+<style>
+  .checkout-main { background: var(--color-soft); }
+
+  .crumb { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-5); color: var(--text-muted); font-size: var(--meta-text-size); }
+  .crumb [aria-current="page"] { color: var(--text-secondary); }
+
+  .state-msg { text-align: center; padding: 40px 16px; color: var(--text-secondary); }
+  .empty { display: grid; gap: 14px; justify-items: center; text-align: center; padding: 48px 16px; max-width: 480px; margin-inline: auto; }
+  .gate-title { margin: 0; color: var(--color-ink); font-family: var(--font-serif); font-size: var(--section-title-size); font-weight: var(--title-weight); line-height: var(--title-line-height); }
+  .gate-lead { margin: 0; color: var(--text-secondary); font-size: var(--description-text-size); line-height: 1.8; }
+
+  /* A plain block, because everything inside it is LoginCard's. The state
+     machine in scripts/checkout.ts shows a view by clearing its inline
+     `display`, so this rule is what it clears BACK to — it has to exist and it
+     has to not be `none`. The LINE button's own styles left with the button. */
+  .login-gate { display: block; }
+
+  .checkout-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-5); align-items: start; }
+
+  /* One panel holding every step, divided rather than stacked as separate
+     cards — the comp reads as a single form, not five. */
+  .form-column { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
+  .form-section { display: grid; gap: 16px; padding: 24px; border-bottom: 1px solid var(--color-border); }
+  .form-section:last-child { border-bottom: 0; }
+  .form-section h2 { margin: 0; color: var(--color-ink); font-family: var(--font-serif); font-size: var(--card-title-size); font-weight: var(--title-weight); letter-spacing: var(--card-title-letter-spacing); line-height: var(--card-title-line-height); }
+
+  .field-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .home-box .field-grid, .form-section .field-grid.full { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  label { display: grid; gap: 8px; align-content: start; }
+  label span { color: var(--text-secondary); font-size: var(--meta-text-size); line-height: 1.6; }
+  /* The required marker is the comp's asterisk. Decorative — the field's own
+     validation message is what actually tells anyone it is required. */
+  label span i { color: var(--color-cta); font-style: normal; }
+  .full { grid-column: 1 / -1; }
+  input, select { width: 100%; max-width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-xs); padding: 12px 13px; background: var(--color-surface); color: var(--color-ink); font: inherit; font-size: var(--description-text-size); }
+  input::placeholder { color: var(--text-faint); }
+  input:focus-visible, select:focus-visible { outline: 2px solid var(--color-cta); outline-offset: -1px; }
+  .hint { margin: 0; color: var(--text-muted); font-size: var(--meta-text-size); line-height: 1.7; }
+
+  /* Shipping and payment read as one row of choices, wrapping rather than
+     stacking — three options fit a desktop row in the comp. */
+  .option-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .option-card { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-surface); cursor: pointer; }
+  /* border follows :checked (not a static render-time class) so the highlight
+     always tracks the selected radio — home-delivery / CVS options included. */
+  .option-card:has(input[type="radio"]:checked) { border-color: var(--color-cta); }
+  .option-card.is-disabled { opacity: 0.55; cursor: not-allowed; }
+  .option-card > div { min-width: 0; }
+  .option-card strong { color: var(--color-ink); font-size: var(--description-text-size); font-weight: var(--title-weight); line-height: 1.5; }
+  .option-card p { margin: 4px 0 0; color: var(--text-muted); font-size: var(--meta-text-size); line-height: 1.6; }
+
+  .cvs-box { display: grid; gap: 12px; padding-top: 14px; border-top: 1px solid var(--color-border); }
+  .cvs-selected { display: grid; gap: 4px; padding: 14px; border: 1px solid var(--color-cta); border-radius: var(--radius-xs); background: var(--color-surface); }
+  .cvs-selected strong { color: var(--color-ink); font-size: var(--description-text-size); }
+  .cvs-selected span { color: var(--text-muted); font-size: var(--meta-text-size); line-height: 1.6; }
+  .cvs-error { margin: 0; }
+  .ghost-btn { justify-self: start; padding: 10px 18px; border: 1px solid var(--color-ink); border-radius: var(--radius-xs); background: transparent; color: var(--color-ink); font: inherit; font-size: var(--description-text-size); cursor: pointer; }
+
+  /* Same geometry as .cvs-box — they are alternates of one another and never
+     both visible. */
+  .home-box { display: grid; }
+
+  .summary-column { display: grid; gap: 18px; }
+  .order-summary { display: grid; gap: 16px; padding: 24px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); position: sticky; top: 96px; }
+  .order-summary h2 { margin: 0; padding-bottom: 14px; border-bottom: 1px solid var(--color-border); color: var(--color-ink); font-family: var(--font-serif); font-size: var(--card-title-size); font-weight: var(--title-weight); letter-spacing: var(--card-title-letter-spacing); }
+  .summary-list { display: grid; gap: 18px; }
+  .totals { display: grid; gap: 12px; }
+  /* Money rows only — the promo box is a totals child too, so exclude it (and
+     its nested rows) from the label/amount space-between layout. */
+  .totals > div:not([data-promo-box]) { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+  .totals span, .totals strong { color: var(--text-secondary); font-size: var(--description-text-size); line-height: 1.8; }
+  .totals strong { color: var(--color-ink); }
+  .totals strong.is-discount { color: var(--color-danger); }
+
+  .grand-total { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding-top: 16px; border-top: 1px solid var(--color-border); }
+  .grand-total > span { color: var(--color-ink); font-size: var(--description-text-size); }
+  .grand-amount { display: grid; justify-items: end; gap: 2px; }
+  .grand-amount strong { color: var(--color-cta); font-family: var(--font-serif); font-size: var(--section-title-size); font-weight: var(--title-weight); line-height: 1.1; }
+  .grand-amount em { color: var(--text-muted); font-size: var(--meta-text-size); font-style: normal; }
+
+  .primary-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px; border: 0; border-radius: var(--radius-sm); background: var(--color-cta); color: var(--color-cta-text); font: inherit; font-size: var(--button-text-size); letter-spacing: var(--button-letter-spacing); cursor: pointer; }
+  .primary-btn svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .primary-btn:disabled { opacity: 0.6; cursor: progress; }
+
+  .secure-note { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin: 0; color: var(--text-muted); font-size: var(--meta-text-size); line-height: 1.6; text-align: left; }
+  .secure-note svg { width: 16px; height: 16px; margin-top: 2px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .secure-note strong { display: block; color: var(--text-secondary); font-weight: var(--title-weight); }
+
+  .error { margin: 0; color: var(--color-danger); font-size: var(--description-text-size); line-height: 1.6; }
+  .link { color: var(--color-ink); text-decoration: underline; font-size: var(--description-text-size); background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer; }
+  .back { justify-self: center; }
+
+  /* Per-item summary row (spec checkout_summary_layout_0717):
+       [ 1:1 thumb ] [ name (≤2 lines) ]
+                     [ price · stepper  ]
+     The rows are injected at runtime by checkout.ts (document.createElement),
+     so they never carry Astro's data-astro-cid scope attribute — these rules
+     MUST be :global() or none of them match (the hotfix: previously scoped, so
+     the layout collapsed to unstyled block flow / full-bleed thumb). Kept
+     nested under the scoped .summary-list so nothing leaks page-wide. */
+  .summary-list :global(.summary-item) {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    column-gap: 14px;
+    align-items: start;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .summary-list :global(.summary-item:last-child) { padding-bottom: 0; border-bottom: 0; }
+  /* Fixed square thumb — never width:100% / auto-stretch. */
+  .summary-list :global(.si-thumb) {
+    flex: none;
+    width: 72px; height: 72px;
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--color-soft);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .summary-list :global(.si-thumb img) { width: 72px; height: 72px; object-fit: cover; display: block; }
+  .summary-list :global(.si-thumb.is-empty) { color: var(--text-muted); }
+  .summary-list :global(.si-thumb.is-empty svg) { width: 24px; height: 24px; }
+  /* Right column fills the thumb height so the price·stepper row can sink to
+     the thumb's bottom edge (margin-top:auto), pulling it away from the name. */
+  .summary-list :global(.si-main) { display: flex; flex-direction: column; min-height: 72px; min-width: 0; }
+  .summary-list :global(.si-name) {
+    margin: 0; color: var(--color-ink);
+    font-size: 14px; line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .summary-list :global(.si-variant) { color: var(--text-muted); font-size: var(--meta-text-size); }
+  .summary-list :global(.si-variant)::before { content: "・"; }
+  .summary-list :global(.si-row) { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 8px; }
+  .summary-list :global(.si-price) { color: var(--color-ink); font-size: 14px; white-space: nowrap; }
+  /* Compact square stepper — matches the PDP .quantity-button language
+     (1px bordered, transparent, square), shrunk to ~28px. */
+  .summary-list :global(.si-stepper) { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+  .summary-list :global(.si-step) {
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit; font-size: 16px; line-height: 1;
+    cursor: pointer;
+  }
+  .summary-list :global(.si-step:hover:not(:disabled)) { border-color: var(--color-ink); }
+  .summary-list :global(.si-step:disabled) { opacity: 0.35; cursor: not-allowed; }
+  .summary-list :global(.si-qty) { min-width: 20px; text-align: center; color: var(--color-ink); font-size: 14px; line-height: 1; font-variant-numeric: tabular-nums; }
+  /* Stepper + 移除 grouped right of the price. The 移除 button shares the
+     .si-step square language; muted until hover/focus so it reads as
+     secondary. */
+  .summary-list :global(.si-controls) { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+  .summary-list :global(.si-remove) {
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0;
+    margin-left: 2px;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex: none;
+  }
+  .summary-list :global(.si-remove svg) { width: 15px; height: 15px; }
+  .summary-list :global(.si-remove:hover:not(:disabled)),
+  .summary-list :global(.si-remove:focus-visible) { border-color: var(--color-ink); color: var(--color-ink); }
+  .summary-list :global(.si-remove:disabled) { opacity: 0.35; cursor: not-allowed; }
+
+  /* 折扣碼區 (promo-checkout-v1). No top divider: the promo box sits between
+     money rows. */
+  .promo-box { display: grid; gap: 8px; }
+  /* Both states share ONE row layout — flex-1 left box + fixed-width right
+     button — so the two columns are pixel-identical and toggling apply/remove
+     shifts nothing (chip-align-v1). */
+  .promo-row { display: flex; gap: 10px; }
+  .promo-input, .promo-chip { flex: 1; min-width: 0; box-sizing: border-box; height: 40px; }
+  .promo-input { padding: 0 12px; }
+  /* Chip = an info box styled like the input (same size, light border) holding
+     only the applied code; the 移除 button lives outside in the button slot. */
+  .promo-chip { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-surface); overflow: hidden; }
+  .promo-chip-code { flex: 1; min-width: 0; color: var(--color-ink); font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 套用 and 移除 occupy the same slot: identical width, height and border. */
+  .promo-apply, .promo-remove {
+    flex: none; width: 72px; box-sizing: border-box; height: 40px;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    border: 0; border-radius: var(--radius-xs);
+    background: var(--color-cta); color: var(--color-cta-text);
+    font: inherit; letter-spacing: 0.04em; cursor: pointer;
+  }
+  .promo-apply:hover:not(:disabled), .promo-remove:hover { opacity: 0.88; }
+  .promo-apply:disabled { opacity: 0.5; cursor: progress; }
+  /* Status line: small text, one reserved line (min-height) so show/clear never
+     shifts the summary. Muted by default + for the 已套用 confirmation; red on
+     failure. */
+  .promo-status { margin: 0; min-height: 1.4em; font-size: var(--meta-text-size); line-height: 1.4; color: var(--text-muted); }
+  .promo-status.is-success { color: var(--text-muted); }
+  .promo-status.is-error { color: var(--color-danger); }
+
+  @media (max-width: 980px) {
+    .checkout-grid { grid-template-columns: 1fr; }
+    .order-summary { position: static; }
+  }
+  @media (max-width: 640px) {
+    .field-grid, .home-box .field-grid, .form-section .field-grid.full { grid-template-columns: 1fr; }
+    .form-section { padding: 20px 18px; }
+    .order-summary { padding: 20px 18px; }
+  }
+</style>
