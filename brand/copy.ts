@@ -474,16 +474,19 @@ export const homeLanding: HomeLandingCopy = {
    *
    * MEASURED per glyph, per docs/PITFALLS.md #7: each character's own rect,
    * with `.hero-copy > *` hidden (the corner caps: ink made transparent),
-   * against white. 2026-09-22, hero-v1 / hero-mobile-v1:
+   * against white. 2026-09-29, the capped full-bleed hero (min(88svh,760px),
+   * phones min(78svh,620px)) on hero-v2 1920x1200 / hero-mobile-v2 900x1400,
+   * both re-cut from the same original:
    *
-   *   photograph plain ('none')   fails everywhere — the silver car and the
-   *              ceiling tubes sit under the copy: 9–33 glyphs under 4.5 at
-   *              every width, min 1.00.
-   *   dark scrim 'heavy'  ← shipped, plus HomeLanding carrying it across the
-   *              phone's full width (solid to 62%, gone by 100%):
-   *              1440, 1280, 1100: 0 / 71; 820, 390: 0 / 45.
-   *   The corner caps (CLEANER CARS / HAPPIER JOURNEYS) sit on the car's
-   *   near-black rear: 0 / 26 at every width they show, min 11.90.
+   *   dark scrim 'heavy' ← shipped; on phones the wash is solid to 72%
+   *              (it was 62%: one lead glyph measured 4.35 at 390).
+   *              1440/1280/1100: 0 / 71, title and lead min 17.94.
+   *              820: 0 / 45, lead min 15.71. 390: 0 / 45, lead min 8.85.
+   *              844x390 (a phone sideways, natural height): 0 / 45.
+   *   The corner caps (CLEANER CARS / HAPPIER JOURNEYS) still sit on the
+   *   car's dark rear, not its highlights: 0 / 26, min 20.62.
+   *   The bright-blue button: its fill against the photograph min 3.62, its
+   *   label on the fill 4.96.
    *
    * A conclusion about THESE words on THESE crops. Change either, measure again.
    */
@@ -501,8 +504,8 @@ export const homeLanding: HomeLandingCopy = {
     corner: 'CLEANER CARS\nHAPPIER JOURNEYS',
     ctaLabel: '立即詢問 →',
     ctaHref: 'https://line.me/R/ti/p/%40060mzbbf',
-    image: '/assets/home/hero-v1.jpg',
-    mobileImage: '/assets/home/hero-mobile-v1.jpg',
+    image: '/assets/home/hero-v2.jpg',
+    mobileImage: '/assets/home/hero-mobile-v2.jpg',
     imageAlt: '昏暗車庫裡，以高壓水柱沖洗銀色轎車的剪影'
   },
 
