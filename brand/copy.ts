@@ -474,19 +474,26 @@ export const homeLanding: HomeLandingCopy = {
    *
    * MEASURED per glyph, per docs/PITFALLS.md #7: each character's own rect,
    * with `.hero-copy > *` hidden (the corner caps: ink made transparent),
-   * against white. 2026-09-29, the capped full-bleed hero (min(88svh,760px),
-   * phones min(78svh,620px)) on hero-v2 1920x1200 / hero-mobile-v2 900x1400,
-   * both re-cut from the same original:
+   * against white. 2026-09-29, the FULL-BLEED hero (the viewport less the
+   * header) on hero-v2 1920x1200 / hero-mobile-v2 900x1400:
    *
-   *   dark scrim 'heavy' ← shipped; on phones the wash is solid to 72%
-   *              (it was 62%: one lead glyph measured 4.35 at 390).
-   *              1440/1280/1100: 0 / 71, title and lead min 17.94.
-   *              820: 0 / 45, lead min 15.71. 390: 0 / 45, lead min 8.85.
-   *              844x390 (a phone sideways, natural height): 0 / 45.
+   *   dark scrim 'standard' ← shipped (it was 'heavy'; the taller hero no
+   *              longer needs it): solid to 26%, gone by 68%.
+   *              1920: title 5.38, lead 8.90, tagline 13.41.
+   *              1440: title 6.07, lead 11.57, tagline 17.77.
+   *              1280/1100: title 15.13/15.18, lead 12.83/9.47.
+   *              820: title 6.83, lead 5.29, tagline 14.09.
+   *              844x390 and 844x500 (natural height): title 7.62,
+   *              lead 5.66, tagline 14.93. 0 glyphs under 4.5 anywhere.
+   *   Phones: the copy sits at the top of the portrait crop and the wash runs
+   *              down, solid to 320px and gone by 440px (HomeLanding): 390,
+   *              360, 375, 414 and 320 wide, 0 glyphs under, min 17.94. The
+   *              button is what sets the 320px: shorter, its fill meets the
+   *              ceiling lights (3.01 at 360x740 with 400px).
    *   The corner caps (CLEANER CARS / HAPPIER JOURNEYS) still sit on the
-   *   car's dark rear, not its highlights: 0 / 26, min 20.62.
-   *   The bright-blue button: its fill against the photograph min 3.62, its
-   *   label on the fill 4.96.
+   *   car's dark rear: 0 / 26, min 20.62.
+   *   The bright-blue button: its fill against the photograph min 3.21
+   *   (360x740), 3.25 (1920), otherwise 3.39 or more; its label 4.96.
    *
    * A conclusion about THESE words on THESE crops. Change either, measure again.
    */
@@ -495,7 +502,7 @@ export const homeLanding: HomeLandingCopy = {
     copyGround: 'scrim',
     mobileCopyGround: 'scrim',
     align: 'left',
-    scrim: { from: 'left', tint: 'dark', depth: 'heavy' },
+    scrim: { from: 'left', tint: 'dark', depth: 'standard' },
     eyebrow: '',
     title: '不只潔淨\n更是對駕馭的熱愛',
     /** `\n` renders as a line break — the block is `white-space: pre-line`. */

@@ -1080,22 +1080,17 @@ const freeShippingThreshold = merchant?.shipping_config?.free_shipping_threshold
     font-weight: 700;
   }
 
-  /* A capped full-bleed hero: nearly the whole first screen, but never so
-     tall that the trust strip's top edge drops out of view — that edge is
-     the hint there is more below. svh after vh: browsers that know svh
-     (which excludes the collapsing address bar) take the second line. */
+  /* A FULL-BLEED hero: from the header's foot to the viewport's. The header
+     is the template's, sticky and NOT laid over the photograph, so a 100svh
+     hero would push its own lower edge off the first screen; the hero takes
+     the viewport less the header instead. --header-h is the header's
+     rendered height, MEASURED: 77px above 760px, 65px at and below.
+     svh after vh: browsers that know svh (which excludes the collapsing
+     address bar) take the second line. */
   .home-hero {
-    min-height: min(88vh, 760px);
-    min-height: min(88svh, 760px);
-  }
-
-  /* A phone turned sideways has ~390px of height: a percentage of it would
-     crush the copy, so the hero takes its natural height there. */
-  @media (orientation: landscape) and (max-height: 500px) {
-    .home-hero {
-      min-height: 0;
-      padding-block: 36px;
-    }
+    --header-h: 77px;
+    min-height: calc(100vh - var(--header-h));
+    min-height: calc(100svh - var(--header-h));
   }
 
   /* Letterspaced caps in the lower-right corner, white, wide screens only. */
@@ -1400,24 +1395,31 @@ const freeShippingThreshold = merchant?.shipping_config?.free_shipping_threshold
 
   @media (max-width: 760px) {
     .home-hero {
-      min-height: min(78vh, 620px);
-      min-height: min(78svh, 620px);
+      --header-h: 65px;
+      align-items: start;
     }
 
     .home-hero img {
       object-position: center top;
     }
 
+    .hero-copy {
+      padding-top: 36px;
+    }
+
     .hero-copy h1 {
       font-size: min(var(--hero-title-size), 8.4vw);
     }
 
-    /* On a phone the copy runs the full width of the portrait crop, across
-       the ceiling lights and the car's pale roof. The dark wash is carried
-       across all of it. MEASURED: brand/copy.ts → hero. */
+    /* On a phone the copy sits at the TOP of the portrait crop, over the dark
+       ceiling above the lights, and the dark wash runs DOWN from there: solid
+       only as far as the copy's last line, then gone, so the man, the spray
+       and the car below are the photograph as shot. MEASURED: brand/copy.ts
+       → hero. */
     .home-hero {
-      --scrim-solid: 72%;
-      --scrim-end: 100%;
+      --scrim-angle: 180deg;
+      --scrim-solid: 320px;
+      --scrim-end: 440px;
     }
 
     .trust-list {
@@ -1432,6 +1434,25 @@ const freeShippingThreshold = merchant?.shipping_config?.free_shipping_threshold
 
     .scene-grid {
       grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* A phone turned sideways has ~390px of height: the hero takes its natural
+     height there, tightened, and is capped at the space under the header so
+     it never runs past the first screen. LAST in the sheet, so it also
+     overrides the phone block's top anchoring on a sideways phone narrower
+     than 760px. MEASURED at 844x390, 844x500 and 740x360. */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .home-hero {
+      align-items: center;
+      min-height: 0;
+      max-height: calc(100vh - var(--header-h));
+      max-height: calc(100svh - var(--header-h));
+      padding-block: 16px;
+    }
+
+    .hero-copy {
+      padding-top: 0;
     }
   }
 </style>
